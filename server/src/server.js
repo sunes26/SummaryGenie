@@ -20,18 +20,18 @@ const {
   ENVIRONMENTS,
   SHUTDOWN,
   LOGGING
-} = require('./src/constants/index');
+} = require('./constants/index');
 
 // Configuration
-const { initializeFirebase, testConnection } = require('./src/config/firebase');
+const { initializeFirebase, testConnection } = require('./config/firebase');
 
 // Services
-const usageService = require('./src/services/UsageService');
-const { historyService } = require('./src/services/HistoryService');
-const authService = require('./src/services/AuthService');
+const usageService = require('./services/UsageService');
+const { historyService } = require('./services/HistoryService');
+const authService = require('./services/AuthService');
 
 // Express App
-const createApp = require('./src/app');
+const createApp = require('./app');
 
 // ===== 환경변수 검증 =====
 

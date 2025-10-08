@@ -1,7 +1,7 @@
 set -e  # 에러 발생 시 중단
 
 # 환경변수
-export PROJECT_ID="summary-genie-prod"
+export PROJECT_ID="badaai"
 export REGION="asia-northeast3"
 export SERVICE_NAME="summarygenie-server"
 export VERSION="v1"

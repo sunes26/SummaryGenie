@@ -16,13 +16,7 @@
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-icon">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.41 1.41"></path>
-          <path d="M2 20l1.5-1.5 2.15-2.15"></path>
-          <path d="M19 19l1.5 1.5"></path>
-          <path d="M21 17l1-1"></path>
-          <path d="M22 13l1-1"></path>
-        </svg>
+        <img src="icons/logo.png" class="logo-icon" alt="SummaryGenie Logo">
         <h1 data-i18n="appTitle">SummaryGenie</h1>
       </div>
     </header>
@@ -88,7 +82,7 @@
         <input type="file" id="importFile" accept=".json" style="display: none;">
       </section>
 
-      <!-- 구독 및 결제 섹션 (NEW) -->
+      <!-- 구독 및 결제 섹션 -->
       <section class="settings-section">
         <h2 class="section-title">
           <span class="material-icons">payments</span>
@@ -100,7 +94,7 @@
             <p class="subscription-title" data-i18n="currentSubscription">현재 구독 상태</p>
             <p class="subscription-description" data-i18n="freePlanDescription">무료 플랜 이용 중입니다.</p>
           </div>
-          <span class="subscription-badge free" data-i18n="freeBadge">무료 (5회/일)</span>
+          <span class="subscription-badge free" data-i18n="freeBadge">무료 (3회/일)</span>
         </div>
 
         <button id="subscribeBtn" class="subscribe-btn">
@@ -127,7 +121,6 @@
               <span class="material-icons">check_circle</span>
               <span data-i18n="historyStorage">히스토리 클라우드 저장</span>
             </li>
-            
           </ul>
         </div>
       </section>
@@ -228,13 +221,15 @@
     </div>
   </div>
 
-  <!-- 모듈 로드 순서 중요 -->
   <script src="modules/security.js"></script>
   <script src="modules/utils.js"></script>
   <script src="modules/error-handler.js"></script>
+  <script src="modules/token-manager.js"></script>         
+  <script src="modules/usage-manager.js"></script>           
   <script src="modules/storage-manager.js"></script>
   <script src="modules/settings-manager.js"></script>
   <script src="modules/language-manager.js"></script>
+  <script src="modules/sync-manager.js"></script>
   <script src="modules/history-manager.js"></script>
   <script src="modules/ui-components.js"></script>
   <script src="options.js"></script>

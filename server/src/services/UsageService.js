@@ -2,10 +2,6 @@
  * Firestore 기반 사용량 추적 서비스
  * 사용자의 일일 요약/질문 횟수를 추적하고 관리합니다.
  * 
- * ✨ v2.1 업데이트:
- * - 요약 상세 정보를 서브컬렉션에 저장
- * - 날짜 → 요약ID → 상세 정보 구조
- * 
  * 데이터 구조:
  * /usage/{userId}/daily/{YYYY-MM-DD}
  * {
@@ -19,19 +15,6 @@
  *   updatedAt: Timestamp
  * }
  * 
- * /usage/{userId}/daily/{YYYY-MM-DD}/summaries/{summaryId}
- * {
- *   id: string,
- *   title: string,
- *   url: string,
- *   summary: string,
- *   model: string,
- *   language: string,
- *   wordCount: number,
- *   timestamp: Timestamp,
- *   historyId: string (HistoryService 참조)
- * }
- * 
  * @module UsageService
  */
 
@@ -43,8 +26,9 @@ const admin = require('firebase-admin');
  * 허용 범위: 1-100
  * @type {number}
  */
-const FREE_USER_DAILY_LIMIT = parseInt(process.env.FREE_USER_DAILY_LIMIT) || 5;
-
+console.log('🔧 [UsageService] process.env.FREE_USER_DAILY_LIMIT:', process.env.FREE_USER_DAILY_LIMIT);
+const FREE_USER_DAILY_LIMIT = parseInt(process.env.FREE_USER_DAILY_LIMIT) || 3;
+console.log('🔧 [UsageService] FREE_USER_DAILY_LIMIT 최종값:', FREE_USER_DAILY_LIMIT);
 /**
  * 캐시 유효 기간 (밀리초)
  * 허용 범위: 30000(30초) - 300000(5분)
@@ -220,124 +204,12 @@ class UsageService {
   }
   
   /**
-   * 🆕 요약 상세 정보 저장 (서브컬렉션)
-   * 
-   * @async
-   * @param {string} userId - 사용자 ID
-   * @param {string} date - 날짜 (YYYY-MM-DD)
-   * @param {Object} summaryDetail - 요약 상세 정보
-   * @param {string} summaryDetail.title - 제목
-   * @param {string} summaryDetail.url - URL
-   * @param {string} summaryDetail.summary - 요약 내용
-   * @param {string} [summaryDetail.model] - AI 모델
-   * @param {string} [summaryDetail.language] - 언어
-   * @param {number} [summaryDetail.wordCount] - 글자 수
-   * @param {string} [summaryDetail.historyId] - HistoryService 참조
-   * @returns {Promise<string>} 저장된 요약 ID
-   * 
-   * @example
-   * const summaryId = await usageService.saveSummaryDetail('user123', '2025-10-07', {
-   *   title: '뉴스 제목',
-   *   url: 'https://example.com/article',
-   *   summary: '요약 내용...',
-   *   model: 'gpt-4o-mini',
-   *   language: 'ko',
-   *   wordCount: 1500,
-   *   historyId: 'hist123'
-   * });
-   */
-  async saveSummaryDetail(userId, date, summaryDetail) {
-    if (!this.isFirestoreAvailable) {
-      console.warn('⚠️ Firestore 사용 불가 - 요약 상세 정보 저장 건너뜀');
-      return null;
-    }
-    
-    try {
-      // 서브컬렉션 참조 생성
-      const summariesRef = this.db
-        .collection('usage')
-        .doc(userId)
-        .collection('daily')
-        .doc(date)
-        .collection('summaries')
-        .doc(); // 자동 ID 생성
-      
-      const summaryData = {
-        id: summariesRef.id,
-        title: summaryDetail.title || 'Untitled',
-        url: summaryDetail.url || '',
-        summary: summaryDetail.summary || '',
-        model: summaryDetail.model || 'gpt-4o-mini',
-        language: summaryDetail.language || 'ko',
-        wordCount: summaryDetail.wordCount || 0,
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        historyId: summaryDetail.historyId || null
-      };
-      
-      await summariesRef.set(summaryData);
-      
-      console.log(`📝 요약 상세 정보 저장: ${userId} - ${date} - ${summariesRef.id}`);
-      
-      return summariesRef.id;
-      
-    } catch (error) {
-      console.error('❌ saveSummaryDetail 오류:', error.message);
-      // 오류 발생해도 사용량 추적은 계속 진행
-      return null;
-    }
-  }
-  
-  /**
-   * 🆕 특정 날짜의 요약 목록 조회
-   * 
-   * @async
-   * @param {string} userId - 사용자 ID
-   * @param {string} date - 날짜 (YYYY-MM-DD)
-   * @param {number} [limit=20] - 조회 개수
-   * @returns {Promise<Array<Object>>} 요약 목록
-   * 
-   * @example
-   * const summaries = await usageService.getSummaries('user123', '2025-10-07', 10);
-   * console.log(`${summaries.length}개의 요약을 찾았습니다`);
-   */
-  async getSummaries(userId, date, limit = 20) {
-    if (!this.isFirestoreAvailable) {
-      return [];
-    }
-    
-    try {
-      const summariesSnapshot = await this.db
-        .collection('usage')
-        .doc(userId)
-        .collection('daily')
-        .doc(date)
-        .collection('summaries')
-        .orderBy('timestamp', 'desc')
-        .limit(limit)
-        .get();
-      
-      const summaries = summariesSnapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      }));
-      
-      return summaries;
-      
-    } catch (error) {
-      console.error('❌ getSummaries 오류:', error.message);
-      return [];
-    }
-  }
-  
-  /**
    * 사용량 추적 (요약 또는 질문)
-   * ✨ 수정: 요약 상세 정보를 추가 파라미터로 받음
    * 
    * @async
    * @param {string} userId - 사용자 ID
    * @param {string} type - 사용 유형 ('summary' | 'question')
    * @param {boolean} isPremium - 프리미엄 여부
-   * @param {Object} [summaryDetail=null] - 🆕 요약 상세 정보 (type='summary'일 때만)
    * @returns {Promise<Object>} 사용량 정보
    * @property {number} current - 현재 사용량
    * @property {number} limit - 일일 한도
@@ -347,21 +219,13 @@ class UsageService {
    * @throws {Error} userId가 없거나 type이 잘못된 경우
    * 
    * @example
-   * // 요약 사용량 추적 (상세 정보 포함)
-   * const usage = await usageService.trackUsage('user123', 'summary', false, {
-   *   title: '뉴스 제목',
-   *   url: 'https://example.com',
-   *   summary: '요약 내용...',
-   *   model: 'gpt-4o-mini',
-   *   language: 'ko',
-   *   wordCount: 1500,
-   *   historyId: 'hist123'
-   * });
+   * // 요약 사용량 추적
+   * const usage = await usageService.trackUsage('user123', 'summary', false);
    * 
-   * // 질문 사용량 추적 (상세 정보 없음)
+   * // 질문 사용량 추적
    * const usage = await usageService.trackUsage('user123', 'question', false);
    */
-  async trackUsage(userId, type = 'summary', isPremium = false, summaryDetail = null) {
+  async trackUsage(userId, type = 'summary', isPremium = false) {
     // 입력 검증
     if (!userId) {
       throw new Error('userId는 필수입니다');
@@ -430,11 +294,6 @@ class UsageService {
         
         return newData;
       });
-      
-      // 🆕 요약 타입이고 상세 정보가 있으면 서브컬렉션에 저장
-      if (type === 'summary' && summaryDetail) {
-        await this.saveSummaryDetail(userId, today, summaryDetail);
-      }
       
       // 캐시 무효화
       this._invalidateCache(cacheKey);

@@ -175,7 +175,7 @@ const SUMMARY_LENGTHS = {
 
 // ===== 사용량 제한 =====
 const LIMITS = {
-  FREE_DAILY_LIMIT: 5,
+  FREE_DAILY_LIMIT: 3,
   PREMIUM_DAILY_LIMIT: Infinity,
   MIN_CONTENT_LENGTH: 50,
   MAX_CONTENT_LENGTH: 15000,
@@ -207,8 +207,8 @@ const OPENAI = {
 const RATE_LIMITS = {
   // 무료 사용자
   FREE: {
-    DAILY_SUMMARIES: 5,
-    DAILY_QUESTIONS: 5,
+    DAILY_SUMMARIES: 3,
+    DAILY_QUESTIONS: 3,
     WINDOW_MS: 24 * 60 * 60 * 1000, // 24시간
     MAX_REQUESTS_PER_WINDOW: 100
   },

@@ -1,6 +1,8 @@
 ﻿/**
  * SummaryGenie Options Page Styles (웹 개선 버전)
- * 현대적이고 깔끔한 디자인
+ * 현대적이고 깔끔한 디자인 + 프리미엄 오버레이
+ * 
+ * @version 2.1.0
  */
 
 /* ============================================
@@ -121,6 +123,7 @@ body {
 .logo-icon {
   width: 36px;
   height: 36px;
+  object-fit: contain;
 }
 
 .logo h1 {
@@ -786,6 +789,234 @@ body {
 }
 
 /* ============================================
+   로딩 스피너 애니메이션
+   ============================================ */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   동기화 아이콘 애니메이션
+   ============================================ */
+.history-item-header .material-icons[title*="동기화"] {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ============================================
+   PREMIUM LOCK OVERLAY (프리미엄 오버레이)
+   ============================================ */
+
+/* 히스토리 섹션 잠금 상태 */
+.settings-section.locked {
+  position: relative;
+  min-height: 250px;
+  isolation: isolate;
+}
+
+.settings-section.locked .history-controls {
+  opacity: 0.3;
+  filter: grayscale(0.8);
+  pointer-events: none;
+}
+
+/* 오버레이 컨테이너 */
+.lock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 250px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius);
+  border: 2px dashed var(--primary-color);
+  z-index: 10;
+  animation: fadeInOverlay 0.4s ease;
+  padding: 20px;
+}
+
+@keyframes fadeInOverlay {
+  from { 
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to { 
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+body.dark-theme .lock-overlay {
+  background: rgba(31, 41, 55, 0.98);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+/* 오버레이 내용 */
+.lock-content {
+  text-align: center;
+  padding: 30px 20px;
+  max-width: 320px;
+  animation: slideUpContent 0.5s ease;
+}
+
+@keyframes slideUpContent {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ✅ 헤더 컨테이너 (아이콘 + 제목) */
+.lock-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ✅ 아이콘 */
+.lock-icon {
+  font-size: 42px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: pulseIcon 2s ease-in-out infinite;
+  margin: 0;
+  line-height: 1;
+}
+
+@keyframes pulseIcon {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+body.dark-theme .lock-icon {
+  background: linear-gradient(135deg, #3B82F6 0%, #A78BFA 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ✅ 제목 */
+.lock-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+/* 설명 */
+.lock-description {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+  line-height: 1.7;
+  font-weight: 400;
+}
+
+/* 업그레이드 버튼 */
+.upgrade-btn-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(103, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.upgrade-btn-small::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.upgrade-btn-small:hover::before {
+  left: 100%;
+}
+
+.upgrade-btn-small:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(103, 126, 234, 0.6);
+}
+
+.upgrade-btn-small:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(103, 126, 234, 0.4);
+}
+
+.upgrade-btn-small .material-icons {
+  font-size: 20px;
+}
+
+body.dark-theme .upgrade-btn-small {
+  background: linear-gradient(135deg, #3B82F6 0%, #A78BFA 100%);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+body.dark-theme .upgrade-btn-small:hover {
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.6);
+}
+
+/* 힌트 텍스트 */
+.overlay-hint {
+  font-size: 12px;
+  color: var(--text-disabled);
+  margin-top: 18px;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* ============================================
    UTILITIES
    ============================================ */
 .hidden {
@@ -793,7 +1024,19 @@ body {
 }
 
 /* ============================================
-   RESPONSIVE
+   접근성 개선
+   ============================================ */
+.upgrade-btn-small:focus {
+  outline: 3px solid rgba(103, 126, 234, 0.5);
+  outline-offset: 2px;
+}
+
+body.dark-theme .upgrade-btn-small:focus {
+  outline-color: rgba(59, 130, 246, 0.5);
+}
+
+/* ============================================
+   RESPONSIVE (반응형)
    ============================================ */
 @media (max-width: 900px) {
   body {
@@ -848,6 +1091,7 @@ body {
   .logo-icon {
     width: 32px;
     height: 32px;
+    object-fit: contain;
   }
 
   .section-title {
@@ -861,5 +1105,65 @@ body {
 
   .history-btn .material-icons {
     font-size: 18px;
+  }
+
+  /* ✅ 모바일 오버레이 스타일 */
+  .settings-section.locked {
+    min-height: 280px;
+  }
+  
+  .lock-overlay {
+    min-height: 280px;
+    padding: 15px;
+  }
+  
+  .lock-content {
+    padding: 20px 15px;
+    max-width: 280px;
+  }
+  
+  .lock-header {
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  
+  .lock-icon {
+    font-size: 36px;
+  }
+  
+  .lock-title {
+    font-size: 20px;
+  }
+  
+  .lock-description {
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  
+  .upgrade-btn-small {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+  
+  .overlay-hint {
+    font-size: 11px;
+    margin-top: 14px;
+  }
+}
+
+/* ============================================
+   프린트 최적화
+   ============================================ */
+@media print {
+  .lock-overlay {
+    display: none;
+  }
+  
+  .message-box {
+    display: none;
+  }
+  
+  .modal {
+    display: none;
   }
 }

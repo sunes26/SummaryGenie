@@ -555,7 +555,7 @@
     "message": "You are currently on the free plan."
   },
   "freeBadge": {
-    "message": "Free (5/day)"
+    "message": "Free (3/day)"
   },
   "proBadge": {
     "message": "Pro"
@@ -581,7 +581,121 @@
   "redirectingToSubscription": {
     "message": "Redirecting to subscription page..."
   },
-  "addquestions":{
+  "addquestions": {
     "message": "Add question feature"
-  }
+  },
+  "login": {
+    "message": "Login"
+  },
+  "signup": {
+    "message": "Sign Up"
+  },
+  "email": {
+    "message": "Email"
+  },
+  "password": {
+    "message": "Password"
+  },
+  "passwordConfirm": {
+    "message": "Confirm Password"
+  },
+  "name": {
+    "message": "Name"
+  },
+  "rememberMe": {
+    "message": "Remember me"
+  },
+  "forgotPassword": {
+    "message": "Forgot password?"
+  },
+  "loginButton": {
+    "message": "Login"
+  },
+  "signupButton": {
+    "message": "Sign Up"
+  },
+  "noAccount": {
+    "message": "Don't have an account?"
+  },
+  "hasAccount": {
+    "message": "Already have an account?"
+  },
+  "emailPlaceholder": {
+    "message": "email@example.com"
+  },
+  "passwordPlaceholder": {
+    "message": "Enter your password"
+  },
+  "passwordConfirmPlaceholder": {
+    "message": "Re-enter your password"
+  },
+  "namePlaceholder": {
+    "message": "John Doe"
+  },
+  "passwordRequirement": {
+    "message": "Min 8 characters, uppercase, lowercase, and numbers"
+  },
+  "passwordWeak": {
+    "message": "Weak"
+  },
+  "passwordMedium": {
+    "message": "Medium"
+  },
+  "passwordStrong": {
+    "message": "Strong"
+  },
+  "resetPasswordTitle": {
+    "message": "Reset Password"
+  },
+  "resetPasswordDesc": {
+    "message": "Enter your email address and we will send you a password reset link."
+  },
+  "sendResetLink": {
+    "message": "Send Reset Link"
+  },
+  "loginSuccess": {
+    "message": "Login Successful!"
+  },
+  "loginSuccessDesc": {
+    "message": "Click the SummaryGenie extension icon\nto start using it."
+  },
+  "or": {
+    "message": "or"
+  },
+  "language": {
+    "message": "Language"
+  },
+  "historyFeatureTitle": {
+    "message": "History Feature"
+  },
+  "historyFeatureDescription": {
+    "message": "Save your summary history and<br>review them anytime!"
+  },
+  "overlayHint": {
+    "message": "💡 Not available on free plan"
+  },
+  "loadingHistory": {
+    "message": "Loading history..."
+  },
+  "historySynced": {
+    "message": "$1 histories synced from server",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "questionFeatureTitle": {
+  "message": "Question Feature"
+},
+"questionFeatureDescription": {
+  "message": "Ask additional questions<br>and understand deeper!"
+},
+"proPlanDescription": {
+  "message": "You are currently on the premium plan."
+},
+"manageSubscription": {
+  "message": "Manage Subscription"
+}
 }

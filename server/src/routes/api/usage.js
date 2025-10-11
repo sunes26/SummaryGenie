@@ -23,7 +23,7 @@ const { validate, statisticsValidator } = require('../../middleware/validator');
 const usageService = require('../../services/UsageService');
 
 // 무료 사용자 일일 한도 (상수로 선언)
-const FREE_USER_DAILY_LIMIT = parseInt(process.env.FREE_USER_DAILY_LIMIT) || 5;
+const FREE_USER_DAILY_LIMIT = parseInt(process.env.FREE_USER_DAILY_LIMIT) || 3;
 
 // ===== GET / - 현재 사용량 조회 =====
 
@@ -53,7 +53,7 @@ const FREE_USER_DAILY_LIMIT = parseInt(process.env.FREE_USER_DAILY_LIMIT) || 5;
  *   "isPremium": false,
  *   "usage": {
  *     "used": 3,
- *     "limit": 5,
+ *     "limit": 3,
  *     "remaining": 2,
  *     "questionUsed": 2,
  *     "questionLimit": 5,

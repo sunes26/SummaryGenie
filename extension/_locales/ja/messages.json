@@ -364,7 +364,7 @@
     "message": "現在、無料プランを利用中です。"
   },
   "freeBadge": {
-    "message": "無料 (5回/日)"
+    "message": "無料 (3回/日)"
   },
   "proBadge": {
     "message": "プロ"
@@ -390,7 +390,121 @@
   "redirectingToSubscription": {
     "message": "サブスクリプションページにリダイレクト中..."
   },
-  "addquestions":{
+  "addquestions": {
     "message": "質問機能の追加"
-  }
+  },
+  "historyFeatureTitle": {
+    "message": "履歴機能"
+  },
+  "historyFeatureDescription": {
+    "message": "要約履歴を保存して<br>いつでも確認できます！"
+  },
+  "overlayHint": {
+    "message": "💡 無料プランでは使用できません"
+  },
+  "loadingHistory": {
+    "message": "履歴を読み込み中..."
+  },
+  "historySynced": {
+    "message": "$1件の履歴をサーバーから取得しました",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "login": {
+    "message": "ログイン"
+  },
+  "signup": {
+    "message": "新規登録"
+  },
+  "email": {
+    "message": "メールアドレス"
+  },
+  "password": {
+    "message": "パスワード"
+  },
+  "passwordConfirm": {
+    "message": "パスワード確認"
+  },
+  "name": {
+    "message": "名前"
+  },
+  "rememberMe": {
+    "message": "ログイン状態を保持"
+  },
+  "forgotPassword": {
+    "message": "パスワードをお忘れですか？"
+  },
+  "loginButton": {
+    "message": "ログイン"
+  },
+  "signupButton": {
+    "message": "新規登録"
+  },
+  "noAccount": {
+    "message": "アカウントをお持ちでないですか？"
+  },
+  "hasAccount": {
+    "message": "すでにアカウントをお持ちですか？"
+  },
+  "emailPlaceholder": {
+    "message": "email@example.com"
+  },
+  "passwordPlaceholder": {
+    "message": "パスワードを入力"
+  },
+  "passwordConfirmPlaceholder": {
+    "message": "パスワードを再入力"
+  },
+  "namePlaceholder": {
+    "message": "山田太郎"
+  },
+  "passwordRequirement": {
+    "message": "8文字以上、英大文字、英小文字、数字を含む"
+  },
+  "passwordWeak": {
+    "message": "弱い"
+  },
+  "passwordMedium": {
+    "message": "普通"
+  },
+  "passwordStrong": {
+    "message": "強い"
+  },
+  "resetPasswordTitle": {
+    "message": "パスワードリセット"
+  },
+  "resetPasswordDesc": {
+    "message": "登録したメールアドレスを入力すると、パスワードリセットリンクをお送りします。"
+  },
+  "sendResetLink": {
+    "message": "リセットリンクを送信"
+  },
+  "loginSuccess": {
+    "message": "ログイン成功！"
+  },
+  "loginSuccessDesc": {
+    "message": "SummaryGenie拡張機能アイコンを\nクリックして使用を開始してください。"
+  },
+  "or": {
+    "message": "または"
+  },
+  "language": {
+    "message": "言語"
+  },
+  "questionFeatureTitle": {
+  "message": "質問機能"
+},
+"questionFeatureDescription": {
+  "message": "追加の質問をして<br>より深く理解しましょう！"
+},
+"proPlanDescription": {
+  "message": "プレミアムプランをご利用中です。"
+},
+"manageSubscription": {
+  "message": "サブスクリプション管理"
+}
 }

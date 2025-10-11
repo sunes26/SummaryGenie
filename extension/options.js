@@ -3,6 +3,12 @@
  * UI 표시 및 사용자 인터랙션 담당
  * 
  * 전역 방식: 모든 모듈은 window 객체에 이미 노출되어 있습니다.
+ * 
+ * 📝 v2.3.0 변경사항:
+ * - 프리미엄 사용자만 히스토리 섹션 표시 (잠금 오버레이)
+ * - 구독 상태에 따라 구독 섹션 UI 동적 변경
+ * - 완전한 다국어 지원
+ * - 언어 변경 시 히스토리 오버레이 및 구독 UI 텍스트 즉시 업데이트
  */
 
 // 전역 객체 사용 확인 (디버깅용)
@@ -17,7 +23,9 @@
     'createSafeElement',
     'validateInput',
     'formatRelativeTime',
-    'formatDate'
+    'formatDate',
+    'usageManager',
+    'tokenManager'
   ];
   
   const missing = requiredGlobals.filter(name => !window[name]);
@@ -57,7 +65,15 @@ const elements = {
   termsLink: document.getElementById('termsLink'),
   resetBtn: document.getElementById('resetBtn'),
   saveBtn: document.getElementById('saveBtn'),
-  messageBox: document.getElementById('message-box')
+  messageBox: document.getElementById('message-box'),
+  
+  // ✅ 구독 관련 요소 추가
+  subscriptionStatus: document.querySelector('.subscription-status'),
+  subscriptionInfo: document.querySelector('.subscription-info'),
+  subscriptionTitle: document.querySelector('.subscription-title'),
+  subscriptionDescription: document.querySelector('.subscription-description'),
+  subscriptionBadge: document.querySelector('.subscription-badge'),
+  subscriptionFeatures: document.querySelector('.subscription-features')
 };
 
 let appState = {
@@ -74,16 +90,290 @@ function showMessage(message, type = 'success') {
   const messageBox = elements.messageBox;
   messageBox.textContent = message;
   
-  // 기존 클래스 제거
   messageBox.classList.remove('show', 'success', 'error', 'info');
-  
-  // 새 클래스 추가
   messageBox.classList.add('show', type);
   
-  // 3초 후 메시지 숨기기
   setTimeout(() => {
     messageBox.classList.remove('show');
   }, 3000);
+}
+
+/**
+ * ✅ 구독 상태에 따라 구독 섹션 UI 업데이트
+ * @param {boolean} isPremium - 프리미엄 사용자 여부
+ * @param {Object} usageData - 사용량 데이터 (선택)
+ */
+function updateSubscriptionUI(isPremium, usageData = null) {
+  try {
+    console.log('[Options] 구독 UI 업데이트:', isPremium ? '프리미엄' : '무료');
+    
+    if (isPremium) {
+      // 🌟 프리미엄 사용자
+      
+      // 구독 설명 변경
+      if (elements.subscriptionDescription) {
+        elements.subscriptionDescription.setAttribute('data-i18n', 'proPlanDescription');
+        elements.subscriptionDescription.textContent = 
+          window.languageManager.getMessage('proPlanDescription') || 
+          '프리미엄 플랜을 이용 중입니다.';
+      }
+      
+      // 구독 배지 변경
+      if (elements.subscriptionBadge) {
+        elements.subscriptionBadge.classList.remove('free');
+        elements.subscriptionBadge.classList.add('pro');
+        elements.subscriptionBadge.setAttribute('data-i18n', 'proBadge');
+        elements.subscriptionBadge.textContent = 
+          window.languageManager.getMessage('proBadge') || '프로';
+      }
+      
+      // 구독 버튼 텍스트 변경
+      if (elements.subscribeBtn) {
+        const btnTextSpan = elements.subscribeBtn.querySelector('span:last-child');
+        if (btnTextSpan) {
+          btnTextSpan.setAttribute('data-i18n', 'manageSubscription');
+          btnTextSpan.textContent = 
+            window.languageManager.getMessage('manageSubscription') || '구독 관리';
+        }
+      }
+      
+      // 프리미엄 혜택 목록 숨김 (이미 프리미엄이므로)
+      if (elements.subscriptionFeatures) {
+        elements.subscriptionFeatures.style.display = 'none';
+      }
+      
+    } else {
+      // 💵 무료 사용자
+      
+      // 구독 설명 변경
+      if (elements.subscriptionDescription) {
+        elements.subscriptionDescription.setAttribute('data-i18n', 'freePlanDescription');
+        elements.subscriptionDescription.textContent = 
+          window.languageManager.getMessage('freePlanDescription') || 
+          '무료 플랜 이용 중입니다.';
+      }
+      
+      // 구독 배지 변경
+      if (elements.subscriptionBadge) {
+        elements.subscriptionBadge.classList.remove('pro');
+        elements.subscriptionBadge.classList.add('free');
+        elements.subscriptionBadge.setAttribute('data-i18n', 'freeBadge');
+        
+        // 사용량 정보가 있으면 표시
+        let badgeText = window.languageManager.getMessage('freeBadge') || '무료 (3회/일)';
+        
+        if (usageData && !usageData.isPremium) {
+          const limit = usageData.dailyLimit === Infinity ? '∞' : usageData.dailyLimit;
+          const timesText = window.languageManager.getMessage('times') || '회';
+          badgeText = `무료 (${limit}${timesText}/일)`;
+        }
+        
+        elements.subscriptionBadge.textContent = badgeText;
+      }
+      
+      // 구독 버튼 텍스트 변경
+      if (elements.subscribeBtn) {
+        const btnTextSpan = elements.subscribeBtn.querySelector('span:last-child');
+        if (btnTextSpan) {
+          btnTextSpan.setAttribute('data-i18n', 'subscribePremium');
+          btnTextSpan.textContent = 
+            window.languageManager.getMessage('subscribePremium') || 
+            '프리미엄 구독하기 / 관리';
+        }
+      }
+      
+      // 프리미엄 혜택 목록 표시
+      if (elements.subscriptionFeatures) {
+        elements.subscriptionFeatures.style.display = '';
+      }
+    }
+    
+    console.log('[Options] 구독 UI 업데이트 완료');
+    
+  } catch (error) {
+    console.error('[Options] 구독 UI 업데이트 오류:', error);
+    window.errorHandler.handle(error, 'updateSubscriptionUI');
+  }
+}
+
+/**
+ * ✅ 히스토리 오버레이 텍스트만 업데이트 (언어 변경 시)
+ */
+function updateHistoryOverlayText() {
+  const historySection = document.querySelector('.settings-section:has(#viewHistoryBtn)');
+  
+  if (!historySection) {
+    return;
+  }
+  
+  const overlay = historySection.querySelector('.lock-overlay');
+  
+  if (overlay) {
+    // 기존 오버레이가 있으면 텍스트만 업데이트
+    const lockTitle = overlay.querySelector('.lock-title');
+    const lockDescription = overlay.querySelector('.lock-description');
+    const upgradeBtn = overlay.querySelector('#upgradeFromHistory span:last-child');
+    const overlayHint = overlay.querySelector('.overlay-hint');
+    
+    if (lockTitle) {
+      lockTitle.textContent = window.languageManager.getMessage('historyFeatureTitle');
+    }
+    
+    if (lockDescription) {
+      lockDescription.innerHTML = window.languageManager.getMessage('historyFeatureDescription');
+    }
+    
+    if (upgradeBtn) {
+      upgradeBtn.textContent = window.languageManager.getMessage('upgradeToPremium');
+    }
+    
+    if (overlayHint) {
+      overlayHint.textContent = window.languageManager.getMessage('overlayHint');
+    }
+    
+    console.log('[Options] 히스토리 오버레이 텍스트 업데이트 완료');
+  }
+}
+
+/**
+ * ✅ 프리미엄 상태 확인 및 히스토리 섹션 + 구독 섹션 제어
+ */
+async function checkPremiumAndToggleHistory() {
+  try {
+    console.log('[Options] 프리미엄 상태 확인 중...');
+    
+    let isPremium = false;
+    let usageData = null;
+    
+    // 방법 1: usageManager 사용 (서버 기반, 가장 정확)
+    if (window.usageManager) {
+      try {
+        usageData = await window.usageManager.getUsageStatus();
+        isPremium = usageData.isPremium === true;
+        console.log('[Options] usageManager 기반 프리미엄 상태:', isPremium);
+      } catch (usageError) {
+        console.warn('[Options] usageManager 조회 실패, tokenManager로 대체');
+      }
+    }
+    
+    // 방법 2: tokenManager 사용 (백업)
+    if (!isPremium && window.tokenManager) {
+      try {
+        const token = await window.tokenManager.getAccessToken();
+        
+        if (token) {
+          const decoded = window.tokenManager.decodeToken(token);
+          isPremium = decoded?.isPremium === true;
+          console.log('[Options] tokenManager 기반 프리미엄 상태:', isPremium);
+        }
+      } catch (tokenError) {
+        console.warn('[Options] tokenManager 조회 실패');
+      }
+    }
+    
+    // ✅ 히스토리 섹션 제어
+    toggleHistorySection(isPremium);
+    
+    // ✅ 구독 섹션 UI 업데이트
+    updateSubscriptionUI(isPremium, usageData);
+    
+  } catch (error) {
+    console.error('[Options] 프리미엄 확인 오류:', error);
+    window.errorHandler.handle(error, 'check-premium-status');
+    
+    // 에러 시 안전하게 무료로 표시
+    toggleHistorySection(false);
+    updateSubscriptionUI(false);
+  }
+}
+
+/**
+ * ✅ 히스토리 섹션 잠금/해제 (항상 오버레이)
+ * @param {boolean} isPremium - 프리미엄 사용자 여부
+ */
+function toggleHistorySection(isPremium) {
+  // 히스토리 관리 섹션 찾기
+  const historySection = document.querySelector('.settings-section:has(#viewHistoryBtn)');
+  
+  if (!historySection) {
+    console.warn('[Options] 히스토리 섹션을 찾을 수 없습니다');
+    return;
+  }
+  
+  if (isPremium) {
+    // ✅ 프리미엄: 정상 표시
+    historySection.style.display = '';
+    historySection.style.position = '';
+    historySection.style.minHeight = '';
+    historySection.classList.remove('locked');
+    
+    // 기존 오버레이 제거
+    const existingOverlay = historySection.querySelector('.lock-overlay');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+    
+    // 버튼 활성화
+    const buttons = historySection.querySelectorAll('.history-btn');
+    buttons.forEach(btn => {
+      btn.disabled = false;
+      btn.style.pointerEvents = 'auto';
+      btn.style.opacity = '1';
+    });
+    
+    console.log('[Options] ✅ 히스토리 섹션 활성화 (프리미엄 사용자)');
+    
+  } else {
+    // ❌ 무료: 잠금 오버레이 표시
+    historySection.style.display = '';
+    historySection.style.position = 'relative';
+    historySection.style.minHeight = '250px'; // ✅ 최소 높이 설정
+    historySection.classList.add('locked');
+    
+    // 버튼 비활성화
+    const buttons = historySection.querySelectorAll('.history-btn');
+    buttons.forEach(btn => {
+      btn.disabled = true;
+      btn.style.pointerEvents = 'none';
+      btn.style.opacity = '0.3';
+    });
+    
+    // 오버레이가 이미 있으면 추가하지 않음
+    if (!historySection.querySelector('.lock-overlay')) {
+      const overlay = document.createElement('div');
+      overlay.className = 'lock-overlay';
+      overlay.innerHTML = `
+        <div class="lock-content">
+          <div class="lock-header">
+            <span class="material-icons lock-icon">history</span>
+            <p class="lock-title">${window.languageManager.getMessage('historyFeatureTitle')}</p>
+          </div>
+          <p class="lock-description">
+            ${window.languageManager.getMessage('historyFeatureDescription')}
+          </p>
+          <button class="upgrade-btn-small" id="upgradeFromHistory">
+            <span class="material-icons">workspace_premium</span>
+            <span>${window.languageManager.getMessage('upgradeToPremium')}</span>
+          </button>
+          <p class="overlay-hint">${window.languageManager.getMessage('overlayHint')}</p>
+        </div>
+      `;
+      
+      historySection.appendChild(overlay);
+      
+      // 업그레이드 버튼 이벤트
+      const upgradeBtn = overlay.querySelector('#upgradeFromHistory');
+      if (upgradeBtn) {
+        upgradeBtn.addEventListener('click', () => {
+          chrome.tabs.create({ 
+            url: 'https://summarygenie.com/premium' 
+          });
+        });
+      }
+    }
+    
+    console.log('[Options] 🔒 히스토리 섹션 잠금 (무료 사용자)');
+  }
 }
 
 async function initialize() {
@@ -91,6 +381,17 @@ async function initialize() {
     await window.languageManager.initialize();
     await window.settingsManager.initialize();
     await window.historyManager.initialize();
+    
+    // 🆕 syncManager 초기화
+    if (window.syncManager) {
+      await window.syncManager.initialize();
+      console.log('[Options] syncManager 초기화 완료');
+    } else {
+      console.warn('[Options] syncManager를 찾을 수 없습니다');
+    }
+    
+    // ✅ 프리미엄 상태 확인 및 히스토리 섹션 + 구독 섹션 제어
+    await checkPremiumAndToggleHistory();
     
     updateUIFromSettings();
     
@@ -164,6 +465,12 @@ async function saveSettings() {
     if (previousLanguage !== newSettings.language) {
       await window.languageManager.changeLanguage(newSettings.language);
       updateSelectOptions();
+      
+      // ✅ 언어 변경 시 UI 업데이트
+      updateHistoryOverlayText();
+      
+      // ✅ 구독 UI도 다시 체크하여 업데이트
+      await checkPremiumAndToggleHistory();
     }
     
     showMessage(window.languageManager.getMessage('toastSettingsSaved'), 'success');
@@ -196,12 +503,63 @@ async function resetSettings() {
     if (newLanguage !== window.languageManager.getCurrentLanguage()) {
       await window.languageManager.changeLanguage(newLanguage);
       updateSelectOptions();
+      updateHistoryOverlayText();
     }
     
     showMessage(window.languageManager.getMessage('toastResetComplete'), 'success');
   } catch (error) {
     console.error('[Options] 설정 초기화 오류:', error);
     window.errorHandler.handle(error, 'reset-settings');
+    showMessage(window.languageManager.getMessage('toastError'), 'error');
+  }
+}
+
+async function openHistoryModal() {
+  try {
+    elements.historyModal.classList.remove('hidden');
+    
+    while (elements.historyList.firstChild) {
+      elements.historyList.removeChild(elements.historyList.firstChild);
+    }
+    
+    const loadingDiv = window.createSafeElement('div', {
+      style: 'text-align: center; padding: 40px; color: var(--text-secondary);'
+    });
+    const spinner = window.createSafeElement('div', {
+      class: 'spinner',
+      style: 'margin: 0 auto 16px; width: 32px; height: 32px; border: 3px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite;'
+    });
+    const text = window.createSafeElement('p', {}, 
+      window.languageManager.getMessage('loadingHistory')
+    );
+    
+    loadingDiv.appendChild(spinner);
+    loadingDiv.appendChild(text);
+    elements.historyList.appendChild(loadingDiv);
+    
+    console.log('[Options] 히스토리 동기화 시작');
+    
+    try {
+      const syncResult = await window.historyManager.mergeWithCloud();
+      console.log('[Options] 동기화 완료:', syncResult);
+      
+      showMessage(
+        window.languageManager.getMessage('historySynced', [syncResult.downloaded]),
+        'success'
+      );
+    } catch (syncError) {
+      console.warn('[Options] 동기화 실패 (로컬만 표시):', syncError);
+      showMessage(
+        window.languageManager.getMessage('syncFailed'),
+        'info'
+      );
+    }
+    
+    await displayHistory();
+    
+  } catch (error) {
+    console.error('[Options] 히스토리 모달 열기 오류:', error);
+    window.errorHandler.handle(error, 'openHistoryModal');
     showMessage(window.languageManager.getMessage('toastError'), 'error');
   }
 }
@@ -238,6 +596,7 @@ async function displayHistory(filter = 'all', searchTerm = '') {
       noHistoryDiv.appendChild(icon);
       noHistoryDiv.appendChild(text);
       elements.historyList.appendChild(noHistoryDiv);
+      
       return;
     }
     
@@ -252,12 +611,28 @@ async function displayHistory(filter = 'all', searchTerm = '') {
       const historyItem = window.createSafeElement('div', { class: 'history-item' });
       
       const header = window.createSafeElement('div', { class: 'history-item-header' });
+      
+      const titleContainer = window.createSafeElement('div', { 
+        style: 'display: flex; align-items: center; gap: 8px;' 
+      });
+      
       const title = window.createSafeElement('div', { class: 'history-item-title' }, item.title);
+      titleContainer.appendChild(title);
+      
+      if (item.pending_sync) {
+        const syncIcon = window.createSafeElement('span', {
+          class: 'material-icons',
+          style: 'font-size: 16px; color: var(--warning-color);',
+          title: window.languageManager.getMessage('syncing')
+        }, 'sync');
+        titleContainer.appendChild(syncIcon);
+      }
+      
       const date = window.createSafeElement('div', { class: 'history-item-date' },
         window.formatRelativeTime(item.timestamp, window.languageManager.getCurrentLanguage(), timeMessages)
       );
       
-      header.appendChild(title);
+      header.appendChild(titleContainer);
       header.appendChild(date);
       
       const url = window.createSafeElement('div', { class: 'history-item-url' }, item.url);
@@ -286,11 +661,11 @@ async function viewHistoryDetail(historyId) {
     const item = await window.historyManager.getHistoryById(historyId);
     
     if (!item) {
-      showMessage('히스토리를 찾을 수 없습니다', 'error');
+      showMessage(window.languageManager.getMessage('noHistory'), 'error');
       return;
     }
     
-    elements.detailTitle.textContent = item.title || window.languageManager.getMessage('noTitle') || '제목 없음';
+    elements.detailTitle.textContent = item.title || window.languageManager.getMessage('noTitle');
     elements.detailUrl.textContent = item.url;
     elements.detailTime.textContent = window.formatDate(
       item.timestamp,
@@ -393,7 +768,7 @@ function importHistory(file) {
     } catch (error) {
       console.error('[Options] 히스토리 가져오기 오류:', error);
       window.errorHandler.handle(error, 'import-history');
-      showMessage(error.message || window.languageManager.getMessage('importFailed') || '파일을 가져올 수 없습니다', 'error');
+      showMessage(error.message || window.languageManager.getMessage('importFailed'), 'error');
     }
   };
   
@@ -423,20 +798,16 @@ async function clearHistory() {
   } catch (error) {
     console.error('[Options] 히스토리 삭제 오류:', error);
     window.errorHandler.handle(error, 'clear-history');
-    showMessage(window.languageManager.getMessage('historyDeleteFailed') || '히스토리 삭제에 실패했습니다', 'error');
+    showMessage(window.languageManager.getMessage('historyDeleteFailed'), 'error');
   }
 }
 
-/**
- * 구독 버튼 클릭 핸들러
- */
 function handleSubscribe() {
-  // 구독 페이지로 이동 (실제 구현 시 결제 페이지 URL로 변경)
   chrome.tabs.create({ 
     url: 'https://summarygenie.com/subscribe' 
   });
   
-  showMessage(window.languageManager.getMessage('redirectingToSubscription') || '구독 페이지로 이동합니다...', 'info');
+  showMessage(window.languageManager.getMessage('redirectingToSubscription'), 'info');
 }
 
 function updateSelectOptions() {
@@ -457,16 +828,20 @@ function updateSelectOptions() {
 }
 
 function setupEventListeners() {
-  // 테마 변경
   elements.themeSelect.addEventListener('change', (e) => {
     window.settingsManager.applyTheme(e.target.value);
   });
   
-  // 언어 변경
   elements.languageSelect.addEventListener('change', async (e) => {
     const newLanguage = e.target.value;
     await window.languageManager.changeLanguage(newLanguage);
     updateSelectOptions();
+    
+    // ✅ 히스토리 오버레이 텍스트 즉시 업데이트
+    updateHistoryOverlayText();
+    
+    // ✅ 구독 UI도 업데이트
+    await checkPremiumAndToggleHistory();
     
     if (!elements.historyModal.classList.contains('hidden')) {
       const filter = elements.filterPeriod.value;
@@ -475,23 +850,18 @@ function setupEventListeners() {
     }
   });
   
-  // 히스토리 보기
   elements.viewHistoryBtn.addEventListener('click', async () => {
-    elements.historyModal.classList.remove('hidden');
-    await displayHistory();
+    await openHistoryModal();
   });
   
-  // 히스토리 모달 닫기
   elements.closeHistoryBtn.addEventListener('click', () => {
     elements.historyModal.classList.add('hidden');
   });
   
-  // 히스토리 상세 모달 닫기
   elements.closeDetailBtn?.addEventListener('click', () => {
     elements.historyDetailModal.classList.add('hidden');
   });
   
-  // 모달 외부 클릭 시 닫기
   elements.historyModal.addEventListener('click', (e) => {
     if (e.target === elements.historyModal) {
       elements.historyModal.classList.add('hidden');
@@ -504,22 +874,18 @@ function setupEventListeners() {
     }
   });
   
-  // 히스토리 검색
   elements.searchHistory.addEventListener('input', async (e) => {
     const filter = elements.filterPeriod.value;
     await displayHistory(filter, e.target.value);
   });
   
-  // 히스토리 필터
   elements.filterPeriod.addEventListener('change', async (e) => {
     const searchTerm = elements.searchHistory.value;
     await displayHistory(e.target.value, searchTerm);
   });
   
-  // 히스토리 내보내기
   elements.exportHistoryBtn.addEventListener('click', exportHistory);
   
-  // 히스토리 가져오기
   elements.importHistoryBtn.addEventListener('click', () => {
     elements.importFile.click();
   });
@@ -532,30 +898,23 @@ function setupEventListeners() {
     }
   });
   
-  // 히스토리 삭제
   elements.clearHistoryBtn.addEventListener('click', clearHistory);
   
-  // 구독 버튼 (NEW)
   elements.subscribeBtn.addEventListener('click', handleSubscribe);
   
-  // 설정 저장
   elements.saveBtn.addEventListener('click', saveSettings);
   
-  // 설정 초기화
   elements.resetBtn.addEventListener('click', resetSettings);
   
-  // 개인정보 처리방침
   elements.privacyLink.addEventListener('click', (e) => {
     e.preventDefault();
     chrome.tabs.create({ url: 'https://summarygenie.com/privacy' });
   });
   
-  // 이용약관
   elements.termsLink.addEventListener('click', (e) => {
     e.preventDefault();
     chrome.tabs.create({ url: 'https://summarygenie.com/terms' });
   });
 }
 
-// 초기화
 document.addEventListener('DOMContentLoaded', initialize);

@@ -555,7 +555,7 @@
     "message": "무료 플랜 이용 중입니다."
   },
   "freeBadge": {
-    "message": "무료 (5회/일)"
+    "message": "무료 (3회/일)"
   },
   "proBadge": {
     "message": "프로"
@@ -581,8 +581,121 @@
   "redirectingToSubscription": {
     "message": "구독 페이지로 이동합니다..."
   },
-  "addquestions":{
+  "addquestions": {
     "message": "질문 기능 추가"
-  }
-
+  },
+  "login": {
+    "message": "로그인"
+  },
+  "signup": {
+    "message": "회원가입"
+  },
+  "email": {
+    "message": "이메일"
+  },
+  "password": {
+    "message": "비밀번호"
+  },
+  "passwordConfirm": {
+    "message": "비밀번호 확인"
+  },
+  "name": {
+    "message": "이름"
+  },
+  "rememberMe": {
+    "message": "로그인 상태 유지"
+  },
+  "forgotPassword": {
+    "message": "비밀번호 찾기"
+  },
+  "loginButton": {
+    "message": "로그인"
+  },
+  "signupButton": {
+    "message": "회원가입"
+  },
+  "noAccount": {
+    "message": "계정이 없으신가요?"
+  },
+  "hasAccount": {
+    "message": "이미 계정이 있으신가요?"
+  },
+  "emailPlaceholder": {
+    "message": "email@example.com"
+  },
+  "passwordPlaceholder": {
+    "message": "비밀번호를 입력하세요"
+  },
+  "passwordConfirmPlaceholder": {
+    "message": "비밀번호를 다시 입력하세요"
+  },
+  "namePlaceholder": {
+    "message": "홍길동"
+  },
+  "passwordRequirement": {
+    "message": "8자 이상, 영문 대소문자, 숫자 포함"
+  },
+  "passwordWeak": {
+    "message": "약함"
+  },
+  "passwordMedium": {
+    "message": "보통"
+  },
+  "passwordStrong": {
+    "message": "강함"
+  },
+  "resetPasswordTitle": {
+    "message": "비밀번호 재설정"
+  },
+  "resetPasswordDesc": {
+    "message": "가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다."
+  },
+  "sendResetLink": {
+    "message": "재설정 링크 전송"
+  },
+  "loginSuccess": {
+    "message": "로그인 성공!"
+  },
+  "loginSuccessDesc": {
+    "message": "SummaryGenie 확장 프로그램 아이콘을\n클릭하여 사용을 시작하세요."
+  },
+  "or": {
+    "message": "또는"
+  },
+  "language": {
+    "message": "언어"
+  },
+  "historyFeatureTitle": {
+    "message": "히스토리 기능"
+  },
+  "historyFeatureDescription": {
+    "message": "요약 기록을 저장하고<br>언제든지 다시 확인하세요!"
+  },
+  "overlayHint": {
+    "message": "💡 무료 플랜에서는 사용할 수 없습니다"
+  },
+  "loadingHistory": {
+    "message": "히스토리를 불러오는 중..."
+  },
+  "historySynced": {
+    "message": "$1개의 히스토리를 서버에서 가져왔습니다",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "questionFeatureTitle": {
+  "message": "질문 기능"
+},
+"questionFeatureDescription": {
+  "message": "요약에 대해 추가 질문하고<br>더 깊이 이해하세요!"
+},
+"proPlanDescription": {
+  "message": "프리미엄 플랜을 이용 중입니다."
+},
+"manageSubscription": {
+  "message": "구독 관리"
+}
 }

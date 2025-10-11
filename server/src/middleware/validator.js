@@ -3,6 +3,11 @@
  * express-validator를 사용한 요청 데이터 검증
  * 
  * @module middleware/validator
+ * @version 2.2.0
+ * 
+ * ✨ v2.2 업데이트:
+ * - chatValidator에 title, url, language, saveHistory 필드 추가
+ * - 히스토리 저장을 위한 메타데이터 검증 지원
  */
 
 const { body, query, param, validationResult } = require('express-validator');
@@ -56,6 +61,10 @@ const validate = (validations) => {
 /**
  * 채팅/요약 요청 검증
  * POST /api/chat
+ * 
+ * ✨ v2.2 업데이트:
+ * - title, url, language, saveHistory 필드 추가
+ * - 히스토리 저장을 위한 메타데이터 검증
  */
 const chatValidator = [
   // messages 배열 검증
@@ -104,7 +113,40 @@ const chatValidator = [
     .isFloat({ 
       min: OPENAI.MIN_TEMPERATURE, 
       max: OPENAI.MAX_TEMPERATURE 
-    }).withMessage(`temperature는 ${OPENAI.MIN_TEMPERATURE}-${OPENAI.MAX_TEMPERATURE} 사이의 실수여야 합니다`)
+    }).withMessage(`temperature는 ${OPENAI.MIN_TEMPERATURE}-${OPENAI.MAX_TEMPERATURE} 사이의 실수여야 합니다`),
+
+  // 🆕 title 검증 (선택) - 히스토리 저장용
+  body('title')
+    .optional()
+    .isString().withMessage('title은 문자열이어야 합니다')
+    .trim()
+    .isLength({ 
+      min: 1, 
+      max: 500 
+    }).withMessage('title은 1-500자 사이여야 합니다'),
+
+  // 🆕 url 검증 (선택) - 히스토리 저장용
+  body('url')
+    .optional()
+    .isString().withMessage('url은 문자열이어야 합니다')
+    .trim()
+    .isURL({ 
+      protocols: ['http', 'https'],
+      require_protocol: true 
+    }).withMessage('유효한 URL이 아닙니다 (http:// 또는 https:// 포함)')
+    .isLength({ max: 2048 }).withMessage('URL은 최대 2048자까지 가능합니다'),
+
+  // 🆕 language 검증 (선택) - 히스토리 저장용
+  body('language')
+    .optional()
+    .isString().withMessage('language는 문자열이어야 합니다')
+    .isIn(['ko', 'en', 'ja', 'zh']).withMessage('language는 ko, en, ja, zh 중 하나여야 합니다'),
+
+  // 🆕 saveHistory 검증 (선택) - 히스토리 저장 여부
+  body('saveHistory')
+    .optional()
+    .isBoolean().withMessage('saveHistory는 boolean이어야 합니다')
+    .toBoolean()
 ];
 
 /**
@@ -190,6 +232,7 @@ const historyValidator = [
 /**
  * Q&A 추가 검증
  * POST /api/history/:historyId/qa
+ * 
  */
 const qaValidator = [
   // question 검증

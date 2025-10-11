@@ -364,7 +364,7 @@
     "message": "您目前正在使用免费计划。"
   },
   "freeBadge": {
-    "message": "免费 (5次/天)"
+    "message": "免费 (3次/天)"
   },
   "proBadge": {
     "message": "专业版"
@@ -390,7 +390,121 @@
   "redirectingToSubscription": {
     "message": "正在跳转到订阅页面..."
   },
-  "addquestions":{
+  "addquestions": {
     "message": "添加提问功能"
-  }
+  },
+  "historyFeatureTitle": {
+    "message": "历史记录功能"
+  },
+  "historyFeatureDescription": {
+    "message": "保存您的摘要记录<br>随时查看！"
+  },
+  "overlayHint": {
+    "message": "💡 免费计划不可用"
+  },
+  "loadingHistory": {
+    "message": "正在加载历史记录..."
+  },
+  "historySynced": {
+    "message": "从服务器获取了$1条历史记录",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "login": {
+    "message": "登录"
+  },
+  "signup": {
+    "message": "注册"
+  },
+  "email": {
+    "message": "邮箱"
+  },
+  "password": {
+    "message": "密码"
+  },
+  "passwordConfirm": {
+    "message": "确认密码"
+  },
+  "name": {
+    "message": "姓名"
+  },
+  "rememberMe": {
+    "message": "记住我"
+  },
+  "forgotPassword": {
+    "message": "忘记密码？"
+  },
+  "loginButton": {
+    "message": "登录"
+  },
+  "signupButton": {
+    "message": "注册"
+  },
+  "noAccount": {
+    "message": "还没有账户？"
+  },
+  "hasAccount": {
+    "message": "已有账户？"
+  },
+  "emailPlaceholder": {
+    "message": "email@example.com"
+  },
+  "passwordPlaceholder": {
+    "message": "请输入密码"
+  },
+  "passwordConfirmPlaceholder": {
+    "message": "请再次输入密码"
+  },
+  "namePlaceholder": {
+    "message": "张三"
+  },
+  "passwordRequirement": {
+    "message": "至少8个字符，包含大小写字母和数字"
+  },
+  "passwordWeak": {
+    "message": "弱"
+  },
+  "passwordMedium": {
+    "message": "中"
+  },
+  "passwordStrong": {
+    "message": "强"
+  },
+  "resetPasswordTitle": {
+    "message": "重置密码"
+  },
+  "resetPasswordDesc": {
+    "message": "输入您的注册邮箱，我们将发送密码重置链接。"
+  },
+  "sendResetLink": {
+    "message": "发送重置链接"
+  },
+  "loginSuccess": {
+    "message": "登录成功！"
+  },
+  "loginSuccessDesc": {
+    "message": "点击SummaryGenie扩展图标\n开始使用。"
+  },
+  "or": {
+    "message": "或"
+  },
+  "language": {
+    "message": "语言"
+  },
+  "questionFeatureTitle": {
+  "message": "提问功能"
+},
+"questionFeatureDescription": {
+  "message": "提出额外问题<br>深入理解！"
+},
+"proPlanDescription": {
+  "message": "您目前正在使用高级计划。"
+},
+"manageSubscription": {
+  "message": "管理订阅"
+}
 }

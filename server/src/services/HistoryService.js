@@ -266,70 +266,72 @@ class HistoryService {
    *   }
    * });
    */
-  async saveHistory(userId, historyData) {
-    if (!userId) {
-      throw new ValidationError('userId는 필수입니다');
-    }
-    
-    if (!this.isFirestoreAvailable) {
-      throw new Error('Firestore를 사용할 수 없습니다');
-    }
-    
-    // 유효성 검증
-    this._validateHistoryData(historyData);
-    
-    try {
-      const historyRef = this.db
-        .collection('users')
-        .doc(userId)
-        .collection('history')
-        .doc(); // 자동 ID 생성
-      
-      const domain = this._extractDomain(historyData.url);
-      
-      const newHistory = {
-        id: historyRef.id,
-        userId: userId,
-        title: historyData.title.trim(),
-        url: historyData.url.trim(),
-        summary: historyData.summary.trim(),
-        qaHistory: historyData.qaHistory || [],
-        metadata: {
-          domain: domain,
-          language: historyData.metadata?.language || 'unknown',
-          wordCount: historyData.metadata?.wordCount || 0,
-          tags: historyData.metadata?.tags || []
-        },
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        deletedAt: null
-      };
-      
-      await historyRef.set(newHistory);
-      
-      console.log(`📚 히스토리 저장: ${userId} - ${historyRef.id}`);
-      
-      return historyRef.id;
-      
-    } catch (error) {
-      console.error('❌ saveHistory 오류:', error.message);
-      throw error;
-    }
+async saveHistory(userId, historyData) {
+  if (!userId) {
+    throw new ValidationError('userId는 필수입니다');
   }
+  
+  if (!this.isFirestoreAvailable) {
+    throw new Error('Firestore를 사용할 수 없습니다');
+  }
+  
+  this._validateHistoryData(historyData);
+  
+  try {
+    const historyRef = this.db
+      .collection('users')
+      .doc(userId)
+      .collection('history')
+      .doc();
+    
+    const domain = this._extractDomain(historyData.url);
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    
+    const newHistory = {
+      id: historyRef.id,
+      userId: userId,
+      title: historyData.title.trim(),
+      url: historyData.url.trim(),
+      summary: historyData.summary.trim(),
+      qaHistory: historyData.qaHistory || [],
+      metadata: {
+        domain: domain,
+        language: historyData.metadata?.language || 'unknown',
+        wordCount: historyData.metadata?.wordCount || 0,
+        tags: historyData.metadata?.tags || []
+      },
+      timestamp: Date.now(), // 🆕 추가: JavaScript timestamp
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null
+    };
+    
+    await historyRef.set(newHistory);
+    
+    console.log(`📚 히스토리 저장: ${userId} - ${historyRef.id}`);
+    
+    return historyRef.id;
+    
+  } catch (error) {
+    console.error('❌ saveHistory 오류:', error.message);
+    throw error;
+  }
+}
   
   /**
    * 히스토리 목록 조회 (페이지네이션, 검색 지원)
    * 
    * @async
-   * @param {string} userId - 사용자 ID
-   * @param {Object} [options={}] - 조회 옵션
-   * @param {number} [options.limit=20] - 페이지 크기 (1-100)
-   * @param {string} [options.query] - 검색 쿼리 (제목, URL)
-   * @param {Object} [options.startAfter] - 페이지네이션 커서
-   * @returns {Promise<Object>} 히스토리 목록 및 페이지네이션 정보
-   * @property {Array<Object>} items - 히스토리 목록
-   * @property {Object|null} lastDoc - 다음 페이지를 위한 커서
-   * @property {boolean} hasMore - 다음 페이지 존재 여부
+ * @param {string} userId - 사용자 ID
+ * @param {Object} [options={}] - 조회 옵션
+ * @param {number} [options.limit=20] - 페이지 크기 (1-100)
+ * @param {string} [options.query] - 검색 쿼리 (제목, URL 검색)
+ * @param {Object} [options.startAfter] - 페이지네이션 커서
+ * @returns {Promise<Object>} 히스토리 목록 및 페이지네이션 정보
+ * @property {Array<Object>} items - 히스토리 목록
+ * @property {Object|null} lastDoc - 다음 페이지 커서
+ * @property {boolean} hasMore - 다음 페이지 존재 여부
+ * @property {number} total - 현재 페이지 항목 수
    * 
    * @example
    * // 첫 페이지 조회
@@ -347,77 +349,98 @@ class HistoryService {
    *   limit: 10
    * });
    */
-  async getHistory(userId, options = {}) {
-    if (!userId) {
-      throw new ValidationError('userId는 필수입니다');
-    }
-    
-    if (!this.isFirestoreAvailable) {
-      throw new Error('Firestore를 사용할 수 없습니다');
-    }
-    
-    try {
-      const limit = Math.min(options.limit || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
-      
-      let query = this.db
-        .collection('users')
-        .doc(userId)
-        .collection('history')
-        .where('deletedAt', '==', null)
-        .orderBy('createdAt', 'desc')
-        .limit(limit + 1); // hasMore 확인용으로 1개 더 조회
-      
-      // 페이지네이션 커서
-      if (options.startAfter) {
-        query = query.startAfter(options.startAfter);
-      }
-      
-      const snapshot = await query.get();
-      
-      // 검색 필터링 (클라이언트 사이드)
-      let items = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          ...data,
-          _doc: doc // 페이지네이션용
-        };
-      });
-      
-      // 검색 쿼리 적용
-      if (options.query) {
-        const searchQuery = options.query.toLowerCase();
-        items = items.filter(item => 
-          item.title.toLowerCase().includes(searchQuery) ||
-          item.url.toLowerCase().includes(searchQuery)
-        );
-      }
-      
-      // hasMore 확인
-      const hasMore = items.length > limit;
-      if (hasMore) {
-        items.pop(); // 추가로 조회한 1개 제거
-      }
-      
-      // _doc 제거 및 lastDoc 추출
-      const lastDoc = items.length > 0 ? items[items.length - 1]._doc : null;
-      items = items.map(item => {
-        const { _doc, ...rest } = item;
-        return rest;
-      });
-      
-      return {
-        items,
-        lastDoc,
-        hasMore,
-        total: items.length
-      };
-      
-    } catch (error) {
-      console.error('❌ getHistory 오류:', error.message);
-      throw error;
-    }
+/**
+ * 히스토리 목록 조회 (페이지네이션, 검색 지원)
+ */
+async getHistory(userId, options = {}) {
+  if (!userId) {
+    throw new ValidationError('userId는 필수입니다');
   }
   
+  if (!this.isFirestoreAvailable) {
+    throw new Error('Firestore를 사용할 수 없습니다');
+  }
+  
+  try {
+    const limit = Math.min(options.limit || DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    
+    // 🔧 timestamp 필드로 정렬 (실제 Firestore 데이터에 맞춤)
+    let query = this.db
+      .collection('users')
+      .doc(userId)
+      .collection('history')
+      .orderBy('timestamp', 'desc')
+      .limit(limit + 1);
+    
+    if (options.startAfter) {
+      query = query.startAfter(options.startAfter);
+    }
+    
+    const snapshot = await query.get();
+    
+    let items = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        
+        // 🔧 timestamp 필드를 ISO 문자열로 변환
+        let createdAtISO = null;
+        if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+          createdAtISO = data.timestamp.toDate().toISOString();
+        } else if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+          createdAtISO = data.createdAt.toDate().toISOString();
+        }
+        
+        let updatedAtISO = null;
+        if (data.updatedAt && typeof data.updatedAt.toDate === 'function') {
+          updatedAtISO = data.updatedAt.toDate().toISOString();
+        }
+        
+        let deletedAtISO = null;
+        if (data.deletedAt && typeof data.deletedAt.toDate === 'function') {
+          deletedAtISO = data.deletedAt.toDate().toISOString();
+        }
+        
+        return {
+          ...data,
+          createdAt: createdAtISO,
+          updatedAt: updatedAtISO,
+          deletedAt: deletedAtISO,
+          _doc: doc
+        };
+      })
+      .filter(item => !item.deletedAt);
+    
+    if (options.query) {
+      const searchQuery = options.query.toLowerCase();
+      items = items.filter(item => 
+        item.title.toLowerCase().includes(searchQuery) ||
+        item.url.toLowerCase().includes(searchQuery)
+      );
+    }
+    
+    const hasMore = items.length > limit;
+    if (hasMore) {
+      items.pop();
+    }
+    
+    const lastDoc = items.length > 0 ? items[items.length - 1]._doc : null;
+    items = items.map(item => {
+      const { _doc, ...rest } = item;
+      return rest;
+    });
+    
+    return {
+      items,
+      lastDoc,
+      hasMore,
+      total: items.length
+    };
+    
+  } catch (error) {
+    console.error('❌ getHistory 오류:', error.message);
+    throw error;
+  }
+}
   /**
    * 단일 히스토리 조회
    * 

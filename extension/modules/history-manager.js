@@ -144,22 +144,51 @@ class HistoryManager {
     }
   }
   
-  /**
-   * 클라우드에서 가져오기
-   * @param {Object} options - 조회 옵션
-   * @returns {Promise<Object>} 서버 데이터
-   */
-  async fetchFromCloud(options = {}) {
-    try {
-      const serverData = await window.syncManager.downloadFromServer(options);
+/**
+ * 클라우드에서 가져오기
+ * @param {Object} options - 조회 옵션
+ * @returns {Promise<Object>} 서버 데이터
+ */
+async fetchFromCloud(options = {}) {
+  try {
+    const serverData = await window.syncManager.downloadFromServer(options);
+    
+    const items = serverData.items?.map(item => {
+      // 🔧 createdAt을 timestamp로 변환
+      let timestamp;
+      if (item.createdAt) {
+        // Firestore Timestamp 객체인 경우
+        if (typeof item.createdAt === 'object' && item.createdAt._seconds) {
+          timestamp = item.createdAt._seconds * 1000;
+          console.log(`[HistoryManager] Firestore Timestamp 변환: ${item.id} -> ${timestamp}`);
+        } 
+        // ISO 문자열인 경우
+        else if (typeof item.createdAt === 'string') {
+          timestamp = new Date(item.createdAt).getTime(); // 🔧 수정: toISOString() 제거
+          console.log(`[HistoryManager] ISO 문자열 변환: ${item.id} -> ${timestamp}`);
+        }
+        // 이미 숫자인 경우
+        else if (typeof item.createdAt === 'number') {
+          timestamp = item.createdAt;
+          console.log(`[HistoryManager] 숫자 타입: ${item.id} -> ${timestamp}`);
+        }
+        // 그 외
+        else {
+          timestamp = Date.now();
+          console.warn(`[HistoryManager] 알 수 없는 형식, 현재 시간 사용: ${item.id}`);
+        }
+      } else {
+        timestamp = Date.now();
+        console.warn(`[HistoryManager] createdAt 없음, 현재 시간 사용: ${item.id}`);
+      }
       
-      const items = serverData.items?.map(item => ({
+      return {
         id: item.id,
         title: item.title,
         url: item.url,
         summary: item.summary,
         summaryLength: item.summaryLength || 'medium',
-        timestamp: new Date(item.createdAt).getTime(),
+        timestamp: timestamp,  // 🔧 올바른 timestamp
         qaHistory: item.qaHistory || [],
         pending_sync: false,
         metadata: {
@@ -167,81 +196,112 @@ class HistoryManager {
           wordCount: this.countWords(item.summary),
           ...item.metadata
         }
-      })) || [];
-      
-      console.log(`[HistoryManager] 서버에서 ${items.length}개 가져옴`);
-      
-      return {
-        items,
-        total: serverData.total || items.length,
-        page: serverData.page || 1,
-        hasMore: serverData.hasMore || false
       };
-      
-    } catch (error) {
-      window.errorHandler.handle(error, 'HistoryManager.fetchFromCloud');
-      throw error;
-    }
+    }) || [];
+    
+    console.log(`[HistoryManager] 서버에서 ${items.length}개 가져옴`);
+    console.log(`[HistoryManager] 첫 번째 아이템 샘플:`, items[0]); // 🔧 추가
+    
+    return {
+      items,
+      total: serverData.total || items.length,
+      hasMore: serverData.hasMore || false
+    };
+    
+  } catch (error) {
+    window.errorHandler.handle(error, 'HistoryManager.fetchFromCloud');
+    throw error;
   }
-  
-  /**
-   * 클라우드와 병합
-   * @returns {Promise<Object>} 병합 결과
-   */
-  async mergeWithCloud() {
-    try {
-      await this.initialize();
-      
-      console.log('[HistoryManager] 클라우드 병합 시작');
-      
-      const cloudData = await this.fetchFromCloud({ page: 1, limit: 500 });
-      
-      const resolved = await window.syncManager.resolveConflicts(
-        this.history,
-        cloudData.items
-      );
-      
-      const mergedHistory = [
-        ...resolved.toKeep,
-        ...resolved.toDownload
-      ];
-      
-      const uniqueMap = new Map();
-      mergedHistory.forEach(item => {
-        if (!uniqueMap.has(item.id) || item.timestamp > uniqueMap.get(item.id).timestamp) {
-          uniqueMap.set(item.id, item);
+}
+
+/**
+ * 클라우드와 병합
+ * @returns {Promise<Object>} 병합 결과
+ */
+async mergeWithCloud() {
+  try {
+    await this.initialize();
+    
+    console.log('[HistoryManager] 클라우드 병합 시작');
+    
+    const cloudData = await this.fetchFromCloud({ page: 1, limit: 500 });
+    
+    // 🔧 디버깅: 서버 데이터 확인
+    console.log('[HistoryManager] 서버 데이터 샘플:', cloudData.items[0]);
+    
+    const resolved = await window.syncManager.resolveConflicts(
+      this.history,
+      cloudData.items
+    );
+    
+    // 🔧 디버깅: 병합 전 데이터 확인
+    console.log('[HistoryManager] toDownload 샘플:', resolved.toDownload[0]);
+    console.log('[HistoryManager] toKeep 샘플:', resolved.toKeep[0]);
+    
+    const mergedHistory = [
+      ...resolved.toKeep,
+      ...resolved.toDownload
+    ];
+    
+    // 🔧 중복 제거 및 timestamp 보장
+    const uniqueMap = new Map();
+    mergedHistory.forEach(item => {
+      // 🆕 timestamp가 없으면 createdAt에서 변환 시도
+      if (!item.timestamp && item.createdAt) {
+        if (typeof item.createdAt === 'object' && item.createdAt._seconds) {
+          item.timestamp = item.createdAt._seconds * 1000;
+        } else if (typeof item.createdAt === 'string') {
+          item.timestamp = new Date(item.createdAt).getTime();
+        } else if (typeof item.createdAt === 'number') {
+          item.timestamp = item.createdAt;
         }
-      });
-      
-      this.history = Array.from(uniqueMap.values())
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, this.maxHistoryItems);
-      
-      await this.persist();
-      
-      if (resolved.toUpload.length > 0) {
-        console.log(`[HistoryManager] ${resolved.toUpload.length}개 항목 업로드 중...`);
-        for (const item of resolved.toUpload) {
-          await window.syncManager.addToPendingQueue(item);
-        }
+        console.log(`[HistoryManager] timestamp 복구: ${item.id} -> ${item.timestamp}`);
       }
       
-      const result = {
-        total: this.history.length,
-        downloaded: resolved.toDownload.length,
-        uploaded: resolved.toUpload.length,
-        kept: resolved.toKeep.length
-      };
+      // 🆕 여전히 timestamp가 없으면 현재 시간 사용
+      if (!item.timestamp) {
+        item.timestamp = Date.now();
+        console.warn(`[HistoryManager] timestamp 없음, 현재 시간 사용: ${item.id}`);
+      }
       
-      console.log('[HistoryManager] 병합 완료:', result);
-      
-      return result;
-      
-    } catch (error) {
-      window.errorHandler.handle(error, 'HistoryManager.mergeWithCloud');
-      throw error;
+      if (!uniqueMap.has(item.id) || item.timestamp > uniqueMap.get(item.id).timestamp) {
+        uniqueMap.set(item.id, item);
+      }
+    });
+    
+    this.history = Array.from(uniqueMap.values())
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, this.maxHistoryItems);
+    
+    // 🔧 디버깅: 최종 저장된 데이터 확인
+    console.log('[HistoryManager] 병합 후 this.history[0]:', this.history[0]);
+    
+    await this.persist();
+    
+    if (resolved.toUpload.length > 0) {
+      console.log(`[HistoryManager] ${resolved.toUpload.length}개 항목 업로드 중...`);
+      for (const item of resolved.toUpload) {
+        await window.syncManager.addToPendingQueue(item);
+      }
     }
+    
+    const result = {
+      total: this.history.length,
+      downloaded: resolved.toDownload.length,
+      uploaded: resolved.toUpload.length,
+      kept: resolved.toKeep.length
+    };
+    
+    console.log('[HistoryManager] 병합 완료:', result);
+    
+    return result;
+    
+  } catch (error) {
+    window.errorHandler.handle(error, 'HistoryManager.mergeWithCloud');
+    throw error;
   }
+}
+
   
   /**
    * 클라우드 동기화 활성화/비활성화

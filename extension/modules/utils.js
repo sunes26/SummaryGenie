@@ -47,65 +47,124 @@ function truncateText(text, maxLength, suffix = '...') {
 // ============================================
 
 /**
- * 상대적 시간 포맷팅
+ * 상대적 시간 포맷팅 (다국어 지원)
  * @param {string|Date|number} timestamp - 타임스탬프
+ * @param {string} language - 언어 코드 (ko, en, ja, zh)
+ * @param {Object} messages - 언어별 메시지 객체 (선택)
  * @returns {string} 포맷된 상대 시간
  */
-function formatRelativeTime(timestamp) {
+function formatRelativeTime(timestamp, language = 'ko', messages = null) {
   try {
+    // 🔧 timestamp가 undefined인 경우 처리
+    if (timestamp === undefined || timestamp === null) {
+      console.warn('[Utils] formatRelativeTime: timestamp가 없습니다');
+      return '';
+    }
+    
     const date = new Date(timestamp);
     
     if (isNaN(date.getTime())) {
+      console.warn('[Utils] formatRelativeTime: 유효하지 않은 날짜:', timestamp);
       return String(timestamp);
     }
     
     const now = new Date();
     const diff = now - date;
     
+    // 기본 메시지 정의
+    const defaultMessages = {
+      ko: {
+        justNow: '방금 전',
+        minutesAgo: (n) => `${n}분 전`,
+        hoursAgo: (n) => `${n}시간 전`,
+        daysAgo: (n) => `${n}일 전`
+      },
+      en: {
+        justNow: 'Just now',
+        minutesAgo: (n) => `${n} minute${n > 1 ? 's' : ''} ago`,
+        hoursAgo: (n) => `${n} hour${n > 1 ? 's' : ''} ago`,
+        daysAgo: (n) => `${n} day${n > 1 ? 's' : ''} ago`
+      },
+      ja: {
+        justNow: 'たった今',
+        minutesAgo: (n) => `${n}分前`,
+        hoursAgo: (n) => `${n}時間前`,
+        daysAgo: (n) => `${n}日前`
+      },
+      zh: {
+        justNow: '刚刚',
+        minutesAgo: (n) => `${n}分钟前`,
+        hoursAgo: (n) => `${n}小时前`,
+        daysAgo: (n) => `${n}天前`
+      }
+    };
+    
+    // 사용할 메시지 결정 (파라미터로 전달된 messages 우선)
+    const msgs = messages || defaultMessages[language] || defaultMessages.ko;
+    
     if (diff < 60000) {
-      return '방금 전';
+      return typeof msgs.justNow === 'function' ? msgs.justNow() : msgs.justNow;
     } else if (diff < 3600000) {
       const minutes = Math.floor(diff / 60000);
-      return `${minutes}분 전`;
+      return msgs.minutesAgo(minutes);
     } else if (diff < 86400000) {
       const hours = Math.floor(diff / 3600000);
-      return `${hours}시간 전`;
+      return msgs.hoursAgo(hours);
     } else if (diff < 604800000) {
       const days = Math.floor(diff / 86400000);
-      return `${days}일 전`;
+      return msgs.daysAgo(days);
     } else {
-      return formatDate(date);
+      return formatDate(date, null, language);
     }
   } catch (error) {
-    console.error('[Utils] formatRelativeTime 오류:', error);
+    console.error('[Utils] formatRelativeTime 오류:', error, '| timestamp:', timestamp);
     return String(timestamp);
   }
 }
 
 /**
- * 날짜 포맷팅
+ * 날짜 포맷팅 (다국어 지원)
  * @param {string|Date|number} date - 날짜
- * @returns {string} 포맷된 날짜 (YYYY.MM.DD)
+ * @param {Object} options - Intl.DateTimeFormat 옵션 (선택)
+ * @param {string} language - 언어 코드 (선택)
+ * @returns {string} 포맷된 날짜
  */
-function formatDate(date) {
+function formatDate(date, options = null, language = 'ko') {
   try {
+    // 🔧 date가 undefined인 경우 처리
+    if (date === undefined || date === null) {
+      console.warn('[Utils] formatDate: date가 없습니다');
+      return '';
+    }
+    
     const dateObj = new Date(date);
     
     if (isNaN(dateObj.getTime())) {
+      console.warn('[Utils] formatDate: 유효하지 않은 날짜:', date);
       return String(date);
     }
     
+    // 옵션이 제공된 경우 Intl.DateTimeFormat 사용
+    if (options && typeof options === 'object') {
+      try {
+        const formatter = new Intl.DateTimeFormat(language, options);
+        return formatter.format(dateObj);
+      } catch (intlError) {
+        console.warn('[Utils] Intl.DateTimeFormat 실패, 기본 포맷 사용:', intlError);
+      }
+    }
+    
+    // 기본 포맷: YYYY.MM.DD
     const year = dateObj.getFullYear();
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const day = String(dateObj.getDate()).padStart(2, '0');
     
     return `${year}.${month}.${day}`;
   } catch (error) {
-    console.error('[Utils] formatDate 오류:', error);
+    console.error('[Utils] formatDate 오류:', error, '| date:', date);
     return String(date);
   }
 }
-
 /**
  * 오늘 날짜 문자열 반환
  * @returns {string} 오늘 날짜 문자열

@@ -1,37 +1,36 @@
 /**
- * 인증 페이지 UI 로직 및 이벤트 처리
+ * 인증 페이지 UI 로직 및 이벤트 처리 (다국어 지원)
  * 
  * 의존성:
- * - config.js (먼저 로드 필요)
+ * - config.js
+ * - modules/i18n-manager.js
  * - modules/token-manager.js
  * - modules/auth-manager.js
  * - modules/api-client.js
- * 
- * 📝 주요 수정사항 (v2.0.1):
- * - handleSignup 함수에서 confirmPassword를 authManager.signup()에 전달하도록 수정
  */
 
 // ===== CONFIG 로드 확인 =====
 if (typeof CONFIG === 'undefined' || !CONFIG) {
   console.error('[Auth] CONFIG가 로드되지 않았습니다!');
-  console.error('[Auth] auth.html에서 config.js가 먼저 로드되는지 확인하세요.');
   alert('설정 파일 로드 오류. 페이지를 새로고침해주세요.');
   throw new Error('CONFIG not loaded');
 }
 
-// API 기본 URL (CONFIG에서 자동 감지)
+// API 기본 URL
 const API_BASE_URL = CONFIG.getApiUrl();
 console.log('[Auth] Using API URL:', API_BASE_URL);
 
-// TokenManager 인스턴스 생성 (전역 tokenManager 사용)
-// token-manager.js에서 이미 생성된 전역 인스턴스 사용
-// const tokenManager = new TokenManager(); // modules/token-manager.js에 이미 있음
+// I18nManager 인스턴스 생성
+const i18nManager = new I18nManager();
 
-// AuthManager 인스턴스 생성 (TokenManager 주입)
+// AuthManager 인스턴스 생성
 const authManager = new AuthManager(API_BASE_URL, tokenManager);
 
 // DOM 요소
 const elements = {
+  // 언어 선택
+  languageSelect: document.getElementById('language-select'),
+  
   // 탭
   tabs: document.querySelectorAll('.tab-button'),
   loginForm: document.getElementById('login-form'),
@@ -67,10 +66,19 @@ const elements = {
  * 페이지 초기화
  */
 async function init() {
+  // I18n 초기화
+  await i18nManager.initialize();
+  
+  // 저장된 언어 설정 복원
+  const savedLocale = i18nManager.getCurrentLocale();
+  elements.languageSelect.value = savedLocale;
+  
+  // 페이지 텍스트 업데이트
+  updateAllText();
+  
   // 이미 로그인되어 있는지 확인
   const isLoggedIn = await authManager.isLoggedIn();
   if (isLoggedIn) {
-    // 🔧 수정: 로그인 상태면 안내 메시지 표시 후 탭 닫기
     showLoginSuccessMessage();
     return;
   }
@@ -88,9 +96,47 @@ async function init() {
 }
 
 /**
- * 🆕 로그인 성공 안내 메시지 표시
+ * 페이지의 모든 텍스트 업데이트
+ */
+function updateAllText() {
+  // data-i18n-text 속성 처리
+  document.querySelectorAll('[data-i18n-text]').forEach(element => {
+    const key = element.getAttribute('data-i18n-text');
+    element.textContent = i18nManager.getAuthText(key);
+  });
+
+  // data-i18n-placeholder 속성 처리
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+    const key = element.getAttribute('data-i18n-placeholder');
+    element.setAttribute('placeholder', i18nManager.getAuthText(key));
+  });
+
+  // data-i18n-aria-label 속성 처리
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(element => {
+    const key = element.getAttribute('data-i18n-aria-label');
+    element.setAttribute('aria-label', i18nManager.getAuthText(key));
+  });
+
+  // data-i18n-label 속성 처리 (label 요소)
+  document.querySelectorAll('[data-i18n-label]').forEach(element => {
+    const key = element.getAttribute('data-i18n-label');
+    if (element.childNodes.length === 1 && element.childNodes[0].nodeType === Node.TEXT_NODE) {
+      element.textContent = i18nManager.getAuthText(key);
+    }
+  });
+
+  // HTML lang 속성 업데이트
+  document.documentElement.lang = i18nManager.getCurrentLocale();
+}
+
+/**
+ * 로그인 성공 메시지 표시
  */
 function showLoginSuccessMessage() {
+  const title = i18nManager.getAuthText('loginSuccess');
+  const desc = i18nManager.getAuthText('loginSuccessDesc');
+  const closeText = i18nManager.getAuthText('close');
+  
   document.body.innerHTML = `
     <div style="
       display: flex;
@@ -119,12 +165,13 @@ function showLoginSuccessMessage() {
           justify-content: center;
           margin: 0 auto 24px;
         ">
-          <span class="material-icons" style="color: white; font-size: 48px;">check</span>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
         </div>
-        <h2 style="color: #212121; margin-bottom: 16px;">로그인 성공!</h2>
-        <p style="color: #757575; margin-bottom: 24px; line-height: 1.6;">
-          SummaryGenie 확장 프로그램 아이콘을<br>
-          클릭하여 사용을 시작하세요.
+        <h2 style="color: #212121; margin-bottom: 16px;">${title}</h2>
+        <p style="color: #757575; margin-bottom: 24px; line-height: 1.6; white-space: pre-line;">
+          ${desc}
         </p>
         <button id="closeTabBtn" style="
           background: #2196F3;
@@ -137,7 +184,7 @@ function showLoginSuccessMessage() {
           cursor: pointer;
           transition: background 0.2s;
         ">
-          닫기
+          ${closeText}
         </button>
       </div>
     </div>
@@ -158,6 +205,9 @@ function showLoginSuccessMessage() {
  * 이벤트 리스너 설정
  */
 function setupEventListeners() {
+  // 언어 선택
+  elements.languageSelect.addEventListener('change', handleLanguageChange);
+  
   // 탭 전환
   elements.tabs.forEach(tab => {
     tab.addEventListener('click', () => switchTab(tab.dataset.tab));
@@ -210,6 +260,20 @@ function setupEventListeners() {
 }
 
 /**
+ * 언어 변경 처리
+ */
+async function handleLanguageChange() {
+  const newLocale = elements.languageSelect.value;
+  await i18nManager.changeLocale(newLocale);
+  updateAllText();
+  
+  // 비밀번호 강도 텍스트도 업데이트
+  if (elements.signupPassword.value) {
+    checkPasswordStrength();
+  }
+}
+
+/**
  * 비밀번호 표시/숨기기 토글 기능 설정
  */
 function setupPasswordToggle() {
@@ -219,7 +283,7 @@ function setupPasswordToggle() {
       const isPassword = input.type === 'password';
       input.type = isPassword ? 'text' : 'password';
       
-      // 아이콘 변경 (선택사항)
+      // 아이콘 변경
       button.innerHTML = isPassword
         ? '<svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
         : '<svg class="eye-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -229,7 +293,6 @@ function setupPasswordToggle() {
 
 /**
  * 탭 전환
- * @param {string} tabName - 전환할 탭 이름 ('login' 또는 'signup')
  */
 function switchTab(tabName) {
   // 탭 버튼 활성화
@@ -274,7 +337,7 @@ async function handleLogin() {
   }
 
   if (!password) {
-    showError('login-password-error', '비밀번호를 입력해주세요.');
+    showError('login-password-error', getErrorMessage('passwordRequired'));
     elements.loginPassword.classList.add('error');
     hasError = true;
   }
@@ -290,17 +353,12 @@ async function handleLogin() {
     if (result.success) {
       showAlert('success', result.message);
       
-      // 🔧 수정: 로그인 성공 후 처리
       setTimeout(() => {
-        // 현재 창의 URL 확인
         const currentUrl = window.location.href;
         
         if (currentUrl.includes('auth.html')) {
-          // auth.html 탭에서 로그인한 경우
-          // 성공 메시지 표시 후 탭 닫기
           showLoginSuccessMessage();
         } else {
-          // 다른 경로에서 로그인한 경우 (예: 팝업에서 직접 로그인)
           window.location.href = 'popup.html';
         }
       }, 1000);
@@ -313,7 +371,6 @@ async function handleLogin() {
 
 /**
  * 회원가입 처리
- * 🔧 수정: confirmPassword를 authManager.signup()에 전달
  */
 async function handleSignup() {
   const name = elements.signupName.value.trim();
@@ -342,21 +399,17 @@ async function handleSignup() {
   setButtonLoading(elements.signupSubmit, true);
 
   try {
-    // 🔧 수정: confirmPassword를 함께 전달
     const result = await authManager.signup(email, password, name, passwordConfirm);
     
     if (result.success) {
       showAlert('success', result.message);
       
-      // 🔧 수정: 회원가입 성공 후 처리
       setTimeout(() => {
         const currentUrl = window.location.href;
         
         if (currentUrl.includes('auth.html')) {
-          // auth.html 탭에서 회원가입한 경우
           showLoginSuccessMessage();
         } else {
-          // 다른 경로에서 회원가입한 경우
           window.location.href = 'popup.html';
         }
       }, 1000);
@@ -374,7 +427,7 @@ async function handlePasswordReset() {
   const email = elements.resetEmail.value.trim();
 
   if (!authManager.validateEmail(email)) {
-    showError('reset-email-error', '유효한 이메일 주소를 입력해주세요.');
+    showError('reset-email-error', getErrorMessage('invalidEmail'));
     elements.resetEmail.classList.add('error');
     return;
   }
@@ -397,23 +450,46 @@ async function handlePasswordReset() {
 }
 
 /**
+ * 에러 메시지 가져오기 (다국어 지원)
+ */
+function getErrorMessage(key) {
+  const messages = {
+    'ko': {
+      'emailRequired': '이메일을 입력해주세요.',
+      'invalidEmail': '유효한 이메일 주소를 입력해주세요.',
+      'passwordRequired': '비밀번호를 입력해주세요.',
+      'nameRequired': '이름은 최소 2자 이상이어야 합니다.',
+      'passwordMismatch': '비밀번호가 일치하지 않습니다.',
+      'passwordConfirmRequired': '비밀번호 확인을 입력해주세요.'
+    },
+    'en': {
+      'emailRequired': 'Please enter your email.',
+      'invalidEmail': 'Please enter a valid email address.',
+      'passwordRequired': 'Please enter your password.',
+      'nameRequired': 'Name must be at least 2 characters.',
+      'passwordMismatch': 'Passwords do not match.',
+      'passwordConfirmRequired': 'Please confirm your password.'
+    }
+  };
+
+  const locale = i18nManager.getCurrentLocale();
+  return messages[locale]?.[key] || key;
+}
+
+/**
  * 이메일 형식 검증
- * @param {HTMLInputElement} input - 입력 요소
- * @param {string} errorId - 에러 메시지 요소 ID
- * @returns {boolean} - 유효하면 true
  */
 function validateEmail(input, errorId) {
   const email = input.value.trim();
-  const errorElement = document.getElementById(errorId);
 
   if (!email) {
-    showError(errorId, '이메일을 입력해주세요.');
+    showError(errorId, getErrorMessage('emailRequired'));
     input.classList.add('error');
     return false;
   }
 
   if (!authManager.validateEmail(email)) {
-    showError(errorId, '유효한 이메일 주소를 입력해주세요.');
+    showError(errorId, getErrorMessage('invalidEmail'));
     input.classList.add('error');
     return false;
   }
@@ -425,13 +501,12 @@ function validateEmail(input, errorId) {
 
 /**
  * 이름 검증
- * @returns {boolean} - 유효하면 true
  */
 function validateName() {
   const name = elements.signupName.value.trim();
 
   if (!name || name.length < 2) {
-    showError('signup-name-error', '이름은 최소 2자 이상이어야 합니다.');
+    showError('signup-name-error', getErrorMessage('nameRequired'));
     elements.signupName.classList.add('error');
     return false;
   }
@@ -443,20 +518,19 @@ function validateName() {
 
 /**
  * 비밀번호 일치 검증
- * @returns {boolean} - 일치하면 true
  */
 function validatePasswordMatch() {
   const password = elements.signupPassword.value;
   const passwordConfirm = elements.signupPasswordConfirm.value;
 
   if (!passwordConfirm) {
-    showError('signup-password-confirm-error', '비밀번호 확인을 입력해주세요.');
+    showError('signup-password-confirm-error', getErrorMessage('passwordConfirmRequired'));
     elements.signupPasswordConfirm.classList.add('error');
     return false;
   }
 
   if (password !== passwordConfirm) {
-    showError('signup-password-confirm-error', '비밀번호가 일치하지 않습니다.');
+    showError('signup-password-confirm-error', getErrorMessage('passwordMismatch'));
     elements.signupPasswordConfirm.classList.add('error');
     return false;
   }
@@ -495,13 +569,13 @@ function checkPasswordStrength() {
   
   if (strength <= 2) {
     strengthBar.classList.add('weak');
-    strengthText.textContent = '약함';
+    strengthText.textContent = i18nManager.getAuthText('passwordWeak');
   } else if (strength <= 3) {
     strengthBar.classList.add('medium');
-    strengthText.textContent = '보통';
+    strengthText.textContent = i18nManager.getAuthText('passwordMedium');
   } else {
     strengthBar.classList.add('strong');
-    strengthText.textContent = '강함';
+    strengthText.textContent = i18nManager.getAuthText('passwordStrong');
   }
 }
 
@@ -525,8 +599,6 @@ function hideResetPasswordModal() {
 
 /**
  * 버튼 로딩 상태 설정
- * @param {HTMLButtonElement} button - 버튼 요소
- * @param {boolean} loading - 로딩 상태
  */
 function setButtonLoading(button, loading) {
   const btnText = button.querySelector('.btn-text');
@@ -545,8 +617,6 @@ function setButtonLoading(button, loading) {
 
 /**
  * 에러 메시지 표시
- * @param {string} errorId - 에러 메시지 요소 ID
- * @param {string} message - 표시할 메시지
  */
 function showError(errorId, message) {
   const errorElement = document.getElementById(errorId);
@@ -557,7 +627,6 @@ function showError(errorId, message) {
 
 /**
  * 에러 메시지 제거
- * @param {string} errorId - 에러 메시지 요소 ID
  */
 function clearError(errorId) {
   const errorElement = document.getElementById(errorId);
@@ -580,8 +649,6 @@ function clearAllErrors() {
 
 /**
  * 알림 메시지 표시
- * @param {string} type - 알림 타입 ('success', 'error', 'info')
- * @param {string} message - 표시할 메시지
  */
 function showAlert(type, message) {
   const alert = document.createElement('div');
@@ -593,7 +660,7 @@ function showAlert(type, message) {
   const closeButton = document.createElement('button');
   closeButton.className = 'alert-close';
   closeButton.innerHTML = '✕';
-  closeButton.setAttribute('aria-label', '닫기');
+  closeButton.setAttribute('aria-label', i18nManager.getAuthText('close'));
   closeButton.addEventListener('click', () => {
     alert.remove();
   });

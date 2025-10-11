@@ -398,7 +398,7 @@ class StorageManager {
       isPremium: false,
       plan: 'free',
       limits: {
-        dailySummaries: 5,
+        dailySummaries: 3,
         monthlyQuestions: 50,
         pdfSupport: false
       }

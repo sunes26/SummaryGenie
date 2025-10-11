@@ -272,47 +272,69 @@ class SyncManager {
     return await response.json();
   }
   
-  /**
-   * 서버에서 히스토리 다운로드
-   * @param {Object} options - 조회 옵션
-   * @returns {Promise<Object>} 서버 히스토리
-   */
-  async downloadFromServer(options = {}) {
-    if (!this.isOnline) {
-      throw new Error('오프라인 상태입니다');
+/**
+ * 서버에서 히스토리 다운로드
+ * @param {Object} options - 조회 옵션
+ * @returns {Promise<Object>} 서버 히스토리
+ */
+async downloadFromServer(options = {}) {
+  if (!this.isOnline) {
+    throw new Error('오프라인 상태입니다');
+  }
+  
+  try {
+    const token = await this.getAuthToken();
+    if (!token) {
+      console.warn('[SyncManager] 토큰 없음 - 로컬 히스토리만 사용');
+      return { items: [], total: 0, hasMore: false };
     }
     
-    try {
-      const token = await this.getAuthToken();
-      if (!token) {
-        throw new Error('인증 토큰이 없습니다');
+    // 🔧 limit을 100 이하로 제한 (서버 검증 규칙에 맞춤)
+    const { limit = 100 } = options;
+    const safeLimit = Math.min(limit, 100);
+    
+    // 타임아웃이 있는 fetch
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    const response = await fetch(
+      `${this.API_BASE_URL}/api/history?limit=${safeLimit}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        signal: controller.signal
       }
-      
-      const { page = 1, limit = 50 } = options;
-      
-      const response = await fetch(
-        `${this.API_BASE_URL}/api/history?page=${page}&limit=${limit}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`서버 오류: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log(`[SyncManager] 서버에서 ${data.items?.length || 0}개 다운로드`);
-      
-      return data;
-      
-    } catch (error) {
-      window.errorHandler.handle(error, 'SyncManager.downloadFromServer');
-      throw error;
+    );
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[SyncManager] 서버 응답 에러:', errorData);
+      throw new Error(errorData.message || `서버 오류: ${response.status}`);
     }
+    
+    const data = await response.json();
+    console.log(`[SyncManager] 서버에서 ${data.items?.length || 0}개 다운로드`);
+    
+    return {
+      items: data.items || [],
+      total: data.total || 0,
+      hasMore: data.hasMore || false
+    };
+    
+  } catch (error) {
+    // AbortError 처리
+    if (error.name === 'AbortError') {
+      throw new Error('서버 요청 타임아웃');
+    }
+    
+    console.error('[SyncManager] 다운로드 실패:', error);
+    window.errorHandler.handle(error, 'SyncManager.downloadFromServer');
+    throw error;
   }
+}
   
   /**
    * 충돌 해결
@@ -408,26 +430,53 @@ class SyncManager {
     }
   }
   
-  /**
-   * 인증 토큰 가져오기
-   * @private
-   */
-  async getAuthToken() {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: 'checkTokenStatus'
-      });
-      
-      if (response?.success && response.tokenInfo?.accessToken) {
-        return response.tokenInfo.accessToken;
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('[SyncManager] 토큰 조회 실패:', error);
+/**
+ * 인증 토큰 가져오기 (Background 없이 직접 storage 접근)
+ * @private
+ */
+async getAuthToken() {
+  try {
+    console.log('[SyncManager] storage에서 토큰 조회');
+    
+    const result = await chrome.storage.local.get('tokens');
+    
+    if (!result.tokens || !result.tokens.accessToken) {
+      console.warn('[SyncManager] 토큰 없음');
       return null;
     }
+    
+    const token = result.tokens.accessToken;
+    const parts = token.split('.');
+    
+    if (parts.length !== 3) {
+      console.warn('[SyncManager] 잘못된 토큰 형식');
+      return null;
+    }
+    
+    // 토큰 만료 확인
+    try {
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const exp = payload.exp * 1000;
+      const now = Date.now();
+      
+      if (exp <= now) {
+        console.warn('[SyncManager] 토큰 만료됨');
+        return null;
+      }
+      
+      console.log('[SyncManager] 토큰 유효함');
+      return token;
+      
+    } catch (decodeError) {
+      console.error('[SyncManager] 토큰 디코딩 실패:', decodeError);
+      return null;
+    }
+    
+  } catch (error) {
+    console.error('[SyncManager] 토큰 조회 실패:', error);
+    return null;
   }
+}
   
   /**
    * 네트워크 상태 조회

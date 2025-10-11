@@ -3,9 +3,13 @@
  * 서버 기반 사용량 추적 및 제한 관리
  * 
  * @module usage-manager
- * @version 1.3.0
+ * @version 1.4.0
  * @requires error-handler.js (전역 - window.errorHandler)
  * @requires security.js (전역 - window.validateInput)
+ * 
+ * 📝 v1.4.0 변경사항:
+ * - chrome.storage에 사용량 저장 추가 (실시간 업데이트 지원)
+ * - popup.js에서 storage 변경 감지하여 자동 UI 업데이트
  */
 
 /**
@@ -146,9 +150,9 @@ class UsageManager {
       const usageData = {
         isPremium: result.isPremium || false,
         dailyUsed: result.usage.used || 0,
-        dailyLimit: result.usage.limit === 'unlimited' ? Infinity : (result.usage.limit || 5),
+        dailyLimit: result.usage.limit === 'unlimited' ? Infinity : (result.usage.limit || 3),
         questionUsed: result.usage.questionUsed || 0,
-        questionLimit: result.usage.questionLimit === 'unlimited' ? Infinity : (result.usage.questionLimit || 5),
+        questionLimit: result.usage.questionLimit === 'unlimited' ? Infinity : (result.usage.questionLimit || 3),
         resetAt: result.usage.resetAt
       };
       
@@ -162,6 +166,12 @@ class UsageManager {
 
       this.cachedUsage = usageData;
       this.cacheTimestamp = Date.now();
+
+      // ✅ chrome.storage에도 저장 (실시간 업데이트를 위해)
+      await chrome.storage.local.set({ usageData }).catch(err => {
+        console.error('[UsageManager] Storage 저장 오류:', err);
+      });
+      console.log('[UsageManager] Storage에 사용량 저장 완료');
 
       console.log('[UsageManager] 사용량 조회 완료:', {
         isPremium: usageData.isPremium,
@@ -325,7 +335,12 @@ class UsageManager {
               this.cachedUsage.questionUsed = (this.cachedUsage.questionUsed || 0) + 1;
             }
             
-            console.log('[UsageManager] 로컬 캐시 업데이트 완료:', {
+            // ✅ chrome.storage에도 저장
+            await chrome.storage.local.set({ usageData: this.cachedUsage }).catch(err => {
+              console.error('[UsageManager] Storage 저장 오류:', err);
+            });
+            
+            console.log('[UsageManager] 로컬 캐시 및 Storage 업데이트 완료:', {
               type,
               dailyUsed: this.cachedUsage.dailyUsed,
               questionUsed: this.cachedUsage.questionUsed
@@ -351,16 +366,21 @@ class UsageManager {
         const usageData = {
           isPremium: result.isPremium || false,
           dailyUsed: result.usage.used || 0,
-          dailyLimit: result.usage.limit === 'unlimited' ? Infinity : (result.usage.limit || 5),
+          dailyLimit: result.usage.limit === 'unlimited' ? Infinity : (result.usage.limit || 3),
           questionUsed: result.usage.questionUsed || 0,
-          questionLimit: result.usage.questionLimit === 'unlimited' ? Infinity : (result.usage.questionLimit || 5),
+          questionLimit: result.usage.questionLimit === 'unlimited' ? Infinity : (result.usage.questionLimit || 3),
           resetAt: result.usage.resetAt
         };
         
         this.cachedUsage = usageData;
         this.cacheTimestamp = Date.now();
 
-        console.log('[UsageManager] 사용량 증가 완료:', {
+        // ✅ chrome.storage에도 저장
+        await chrome.storage.local.set({ usageData }).catch(err => {
+          console.error('[UsageManager] Storage 저장 오류:', err);
+        });
+
+        console.log('[UsageManager] 사용량 증가 및 Storage 저장 완료:', {
           type: typeValidation.sanitized,
           dailyUsed: usageData.dailyUsed,
           questionUsed: usageData.questionUsed
@@ -375,7 +395,7 @@ class UsageManager {
       // 404 에러는 이미 위에서 처리했으므로 여기서는 throw하지 않음
       if (error.message && error.message.includes('404')) {
         console.warn('[UsageManager] 404 에러 - 무시하고 현재 캐시 반환');
-        return this.cachedUsage || { isPremium: false, dailyUsed: 0, dailyLimit: 5, questionUsed: 0, questionLimit: 5 };
+        return this.cachedUsage || { isPremium: false, dailyUsed: 0, dailyLimit: 3, questionUsed: 0, questionLimit: 3 };
       }
       
       console.error('[UsageManager] incrementUsage 오류:', error);
@@ -471,7 +491,13 @@ class UsageManager {
   async clearCache() {
     this.cachedUsage = null;
     this.cacheTimestamp = 0;
-    console.log('[UsageManager] 캐시 초기화');
+    
+    // Storage도 초기화
+    await chrome.storage.local.remove('usageData').catch(err => {
+      console.error('[UsageManager] Storage 삭제 오류:', err);
+    });
+    
+    console.log('[UsageManager] 캐시 및 Storage 초기화');
   }
 
   /**
@@ -479,7 +505,8 @@ class UsageManager {
    * @returns {Promise<Object>} 최신 사용량 정보
    */
   async refreshUsage() {
-    await this.clearCache();
+    this.cachedUsage = null;
+    this.cacheTimestamp = 0;
     return await this.getUsageStatus();
   }
 

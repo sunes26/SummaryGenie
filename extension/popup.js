@@ -2,7 +2,20 @@
  * SummaryGenie Popup Main Script
  * Background Service Worker 없이 작동하는 버전 (전역 방식)
  * 
- * @version 3.3.0
+ * @version 3.5.0
+ * 
+ * 📝 v3.5.0 변경사항:
+ * - 질문 섹션 프리미엄 오버레이 추가
+ * - updateQuestionOverlayText() 메서드 추가
+ * - checkPremiumAndToggleQuestion() 메서드 추가
+ * - toggleQuestionSection() 메서드 추가
+ * 
+ * 📝 v3.4.0 변경사항:
+ * - 실시간 사용량 업데이트 기능 추가
+ *   1. Storage 변경 감지 (다른 탭에서 사용 시)
+ *   2. Visibility 변경 감지 (popup 다시 열 때)
+ *   3. Focus 이벤트 (popup에 포커스 시)
+ *   4. 주기적 폴링 (30초마다)
  */
 
 class AppController {
@@ -22,6 +35,12 @@ class AppController {
     };
     this.settingsUnsubscribe = null;
     this.initialized = false;
+    
+    // 실시간 사용량 업데이트 리스너
+    this.storageChangeListener = null;
+    this.visibilityChangeListener = null;
+    this.focusListener = null;
+    this.usagePollingInterval = null;
   }
 
   async initialize() {
@@ -50,8 +69,12 @@ class AppController {
       await window.qaManager.initialize();
       await this.checkUsage();
       
+      // ✅ 질문 섹션 프리미엄 확인 (초기화 시)
+      await this.checkPremiumAndToggleQuestion();
+      
       this.setupEventListeners();
       this.setupSettingsChangeListener();
+      this.setupRealtimeUsageUpdate(); // ✅ 실시간 사용량 업데이트 설정
       window.languageManager.applyLanguageFont();
       
       this.displayUserInfo();
@@ -63,6 +86,208 @@ class AppController {
       console.error('[Security] 초기화 오류:', error);
       window.errorHandler.handle(error, 'popup-initialization');
       this.showError('initializationError');
+    }
+  }
+
+  /**
+   * ✅ 질문 섹션 오버레이 텍스트만 업데이트 (언어 변경 시)
+   */
+  updateQuestionOverlayText() {
+    const questionSection = document.getElementById('questionSection');
+    
+    if (!questionSection) {
+      return;
+    }
+    
+    const overlay = questionSection.querySelector('.question-lock-overlay');
+    
+    if (overlay) {
+      // 기존 오버레이가 있으면 텍스트만 업데이트
+      const lockTitle = overlay.querySelector('.question-lock-title');
+      const lockDescription = overlay.querySelector('.question-lock-description');
+      const upgradeBtn = overlay.querySelector('#upgradeFromQuestion span:last-child');
+      const overlayHint = overlay.querySelector('.question-overlay-hint');
+      
+      if (lockTitle) {
+        lockTitle.textContent = window.languageManager.getMessage('questionFeatureTitle');
+      }
+      
+      if (lockDescription) {
+        lockDescription.innerHTML = window.languageManager.getMessage('questionFeatureDescription');
+      }
+      
+      if (upgradeBtn) {
+        upgradeBtn.textContent = window.languageManager.getMessage('upgradeToPremium');
+      }
+      
+      if (overlayHint) {
+        overlayHint.textContent = window.languageManager.getMessage('overlayHint');
+      }
+      
+      console.log('[Popup] 질문 섹션 오버레이 텍스트 업데이트 완료');
+    }
+  }
+
+  /**
+   * ✅ 프리미엄 상태 확인 및 질문 섹션 제어
+   */
+  async checkPremiumAndToggleQuestion() {
+    try {
+      console.log('[Popup] 질문 섹션 - 프리미엄 상태 확인 중...');
+      
+      let isPremium = false;
+      
+      // 방법 1: usageManager 사용 (서버 기반, 가장 정확)
+      if (window.usageManager) {
+        try {
+          const usageStatus = await window.usageManager.getUsageStatus();
+          isPremium = usageStatus.isPremium === true;
+          console.log('[Popup] usageManager 기반 프리미엄 상태:', isPremium);
+        } catch (usageError) {
+          console.warn('[Popup] usageManager 조회 실패, tokenManager로 대체');
+        }
+      }
+      
+      // 방법 2: tokenManager 사용 (백업)
+      if (!isPremium && window.tokenManager) {
+        try {
+          const token = await window.tokenManager.getAccessToken();
+          
+          if (token) {
+            const decoded = window.tokenManager.decodeToken(token);
+            isPremium = decoded?.isPremium === true;
+            console.log('[Popup] tokenManager 기반 프리미엄 상태:', isPremium);
+          }
+        } catch (tokenError) {
+          console.warn('[Popup] tokenManager 조회 실패');
+        }
+      }
+      
+      // 질문 섹션 제어
+      this.toggleQuestionSection(isPremium);
+      
+    } catch (error) {
+      console.error('[Popup] 질문 섹션 프리미엄 확인 오류:', error);
+      window.errorHandler.handle(error, 'check-premium-status-question');
+      
+      // 에러 시 안전하게 잠금 표시
+      this.toggleQuestionSection(false);
+    }
+  }
+
+  /**
+   * ✅ 질문 섹션 잠금/해제 (항상 오버레이)
+   * @param {boolean} isPremium - 프리미엄 사용자 여부
+   */
+  toggleQuestionSection(isPremium) {
+    const questionSection = document.getElementById('questionSection');
+    
+    if (!questionSection) {
+      console.warn('[Popup] 질문 섹션을 찾을 수 없습니다');
+      return;
+    }
+    
+    if (isPremium) {
+      // ✅ 프리미엄: 정상 표시
+      questionSection.style.position = '';
+      questionSection.style.minHeight = '';
+      questionSection.classList.remove('locked');
+      
+      // 기존 오버레이 제거
+      const existingOverlay = questionSection.querySelector('.question-lock-overlay');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+      
+      // 입력창 및 버튼 활성화
+      const questionInput = questionSection.querySelector('#questionInput');
+      const askBtn = questionSection.querySelector('#askBtn');
+      const clearQABtn = questionSection.querySelector('#clearQABtn');
+      
+      if (questionInput) {
+        questionInput.disabled = false;
+        questionInput.style.pointerEvents = 'auto';
+        questionInput.style.opacity = '1';
+      }
+      
+      if (askBtn) {
+        askBtn.disabled = false;
+        askBtn.style.pointerEvents = 'auto';
+        askBtn.style.opacity = '1';
+      }
+      
+      if (clearQABtn) {
+        clearQABtn.disabled = false;
+        clearQABtn.style.pointerEvents = 'auto';
+        clearQABtn.style.opacity = '1';
+      }
+      
+      console.log('[Popup] ✅ 질문 섹션 활성화 (프리미엄 사용자)');
+      
+    } else {
+      // ❌ 무료: 잠금 오버레이 표시
+      questionSection.style.position = 'relative';
+      questionSection.style.minHeight = '180px';
+      questionSection.classList.add('locked');
+      
+      // 입력창 및 버튼 비활성화
+      const questionInput = questionSection.querySelector('#questionInput');
+      const askBtn = questionSection.querySelector('#askBtn');
+      const clearQABtn = questionSection.querySelector('#clearQABtn');
+      
+      if (questionInput) {
+        questionInput.disabled = true;
+        questionInput.style.pointerEvents = 'none';
+        questionInput.style.opacity = '0.3';
+      }
+      
+      if (askBtn) {
+        askBtn.disabled = true;
+        askBtn.style.pointerEvents = 'none';
+        askBtn.style.opacity = '0.3';
+      }
+      
+      if (clearQABtn) {
+        clearQABtn.disabled = true;
+        clearQABtn.style.pointerEvents = 'none';
+        clearQABtn.style.opacity = '0.3';
+      }
+      
+      // 오버레이가 이미 있으면 추가하지 않음
+      if (!questionSection.querySelector('.question-lock-overlay')) {
+        const overlay = document.createElement('div');
+        overlay.className = 'question-lock-overlay';
+        overlay.innerHTML = `
+          <div class="question-lock-content">
+            <div class="question-lock-header">
+              <span class="material-icons question-lock-icon">help_outline</span>
+              <p class="question-lock-title">${window.languageManager.getMessage('questionFeatureTitle')}</p>
+            </div>
+            <p class="question-lock-description">
+              ${window.languageManager.getMessage('questionFeatureDescription')}
+            </p>
+            <button class="question-upgrade-btn" id="upgradeFromQuestion">
+              <span class="material-icons">workspace_premium</span>
+              <span>${window.languageManager.getMessage('upgradeToPremium')}</span>
+            </button>
+            <p class="question-overlay-hint">${window.languageManager.getMessage('overlayHint')}</p>
+          </div>
+        `;
+        
+        questionSection.appendChild(overlay);
+        
+        // 업그레이드 버튼 이벤트
+        const upgradeBtn = overlay.querySelector('#upgradeFromQuestion');
+        if (upgradeBtn) {
+          upgradeBtn.addEventListener('click', () => {
+            chrome.tabs.create({ 
+              url: 'https://summarygenie.com/premium' 
+            });
+          });
+        }
+      }
+      
+      console.log('[Popup] 🔒 질문 섹션 잠금 (무료 사용자)');
     }
   }
 
@@ -236,6 +461,9 @@ class AppController {
           this.updateUITexts();
           this.updateUsageDisplay();
           window.languageManager.applyLanguageFont();
+          
+          // ✅ 질문 섹션 오버레이 텍스트 즉시 업데이트
+          this.updateQuestionOverlayText();
         });
       }
       
@@ -248,6 +476,61 @@ class AppController {
         this.updateUsageDisplay();
       }
     });
+  }
+
+  /**
+   * 실시간 사용량 업데이트 설정
+   * 
+   * 1. Storage 변경 감지 - usageData가 변경되면 즉시 UI 업데이트
+   * 2. Visibility 변경 감지 - popup이 다시 보일 때 서버에서 최신 사용량 조회
+   * 3. Focus 이벤트 - popup에 포커스가 올 때 최신 사용량 조회
+   * 4. 주기적 폴링 - 30초마다 사용량 조회
+   */
+  setupRealtimeUsageUpdate() {
+    console.log('[Usage Update] 실시간 사용량 업데이트 설정');
+    
+    // 1️⃣ Storage 변경 감지 (다른 탭에서 사용량 변경 시)
+    this.storageChangeListener = (changes, areaName) => {
+      if (areaName === 'local' && changes.usageData) {
+        console.log('[Usage Update] Storage에서 사용량 변경 감지:', changes.usageData.newValue);
+        
+        if (changes.usageData.newValue) {
+          const usageData = changes.usageData.newValue;
+          this.usage.daily = usageData.dailyUsed || 0;
+          this.usage.limit = usageData.dailyLimit || 5;
+          
+          this.updateUsageDisplay();
+          console.log('[Usage Update] 사용량 UI 업데이트 완료 (Storage 기반)');
+        }
+      }
+    };
+    chrome.storage.onChanged.addListener(this.storageChangeListener);
+    
+    // 2️⃣ Visibility 변경 감지 (popup이 숨겨졌다가 다시 보일 때)
+    this.visibilityChangeListener = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Usage Update] Popup이 다시 보임 - 사용량 조회');
+        await this.checkUsage();
+      }
+    };
+    document.addEventListener('visibilitychange', this.visibilityChangeListener);
+    
+    // 3️⃣ Focus 이벤트 (popup에 포커스가 올 때)
+    this.focusListener = async () => {
+      console.log('[Usage Update] Popup에 포커스 - 사용량 조회');
+      await this.checkUsage();
+    };
+    window.addEventListener('focus', this.focusListener);
+    
+    // 4️⃣ 주기적 폴링 (30초마다 - 선택적)
+    this.usagePollingInterval = setInterval(async () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Usage Update] 주기적 폴링 - 사용량 조회');
+        await this.checkUsage();
+      }
+    }, 30000); // 30초
+    
+    console.log('[Usage Update] 실시간 업데이트 리스너 등록 완료');
   }
 
   updateUITexts() {
@@ -303,6 +586,9 @@ class AppController {
         element.title = message;
       }
     });
+    
+    // ✅ 질문 섹션 오버레이 텍스트 즉시 업데이트
+    this.updateQuestionOverlayText();
   }
 
   async loadCurrentTab() {
@@ -483,7 +769,10 @@ class AppController {
       
       await window.qaManager.initialize(historyId, content);
       
-      await window.usageManager.incrementUsage(window.USAGE_TYPE.SUMMARY);
+      // ✅ 질문 섹션 프리미엄 확인 (요약 완료 후 질문 섹션 표시 시)
+      await this.checkPremiumAndToggleQuestion();
+      
+      // ✅ /api/chat에서 이미 사용량을 증가시키므로 여기서는 조회만 수행
       await this.updateUsage();
       
       this.showToast('toastSaved');
@@ -537,7 +826,7 @@ class AppController {
       
       await window.qaManager.processQuestion(question);
       
-      await window.usageManager.incrementUsage(window.USAGE_TYPE.QUESTION);
+      // ✅ /api/chat에서 이미 사용량을 증가시키므로 여기서는 조회만 수행
       await this.updateUsage();
       
       questionInput.value = '';
@@ -663,12 +952,27 @@ class AppController {
       
       console.log('[Usage Display] 무료 사용자 - 사용량:', { usedCount, totalLimit });
       
-      const message = window.languageManager.getMessage('usageToday', {
-        COUNT: usedCount,
-        LIMIT: totalLimit
-      });
+      // 언어별로 직접 문자열 구성 (플레이스홀더 치환 문제 해결)
+      const currentLang = window.languageManager.getCurrentLanguage();
+      let message;
       
-      console.log('[Usage Display] 치환된 메시지:', message);
+      switch(currentLang) {
+        case 'en':
+          message = `Today: ${usedCount}/${totalLimit}`;
+          break;
+        case 'ja':
+          message = `今日: ${usedCount}/${totalLimit}`;
+          break;
+        case 'zh':
+          message = `今日: ${usedCount}/${totalLimit}`;
+          break;
+        case 'ko':
+        default:
+          message = `오늘 ${usedCount}회/${totalLimit}회`;
+          break;
+      }
+      
+      console.log('[Usage Display] 최종 메시지:', message);
       
       usageText.textContent = message;
       usageText.style.color = '';
@@ -915,9 +1219,35 @@ class AppController {
   }
 
   cleanup() {
+    // 설정 변경 리스너 제거
     if (this.settingsUnsubscribe) {
       this.settingsUnsubscribe();
       this.settingsUnsubscribe = null;
+    }
+    
+    // 실시간 사용량 업데이트 리스너 제거
+    if (this.storageChangeListener) {
+      chrome.storage.onChanged.removeListener(this.storageChangeListener);
+      this.storageChangeListener = null;
+      console.log('[Usage Update] Storage 리스너 제거');
+    }
+    
+    if (this.visibilityChangeListener) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeListener);
+      this.visibilityChangeListener = null;
+      console.log('[Usage Update] Visibility 리스너 제거');
+    }
+    
+    if (this.focusListener) {
+      window.removeEventListener('focus', this.focusListener);
+      this.focusListener = null;
+      console.log('[Usage Update] Focus 리스너 제거');
+    }
+    
+    if (this.usagePollingInterval) {
+      clearInterval(this.usagePollingInterval);
+      this.usagePollingInterval = null;
+      console.log('[Usage Update] 폴링 인터벌 제거');
     }
     
     this.initialized = false;
@@ -925,8 +1255,10 @@ class AppController {
   }
 }
 
+// 앱 컨트롤러 인스턴스 생성
 const app = new AppController();
 
+// DOM 로드 완료 후 초기화
 document.addEventListener('DOMContentLoaded', () => {
   app.initialize().catch(error => {
     console.error('[Security] 앱 초기화 실패:', error);
@@ -934,6 +1266,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// 창 닫기 전 정리
 window.addEventListener('beforeunload', () => {
   app.cleanup();
 });

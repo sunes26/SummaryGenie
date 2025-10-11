@@ -466,7 +466,7 @@ async connect() {
   getPlanLimits(plan) {
     const limits = {
       free: {
-        dailySummaries: 5,
+        dailySummaries: 3,
         monthlyQuestions: 50,
         pdfSupport: false,
         historyDays: 7,

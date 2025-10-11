@@ -1,6 +1,6 @@
 # ===================================================================
-# SummaryGenie Server - Google Cloud Run 최적화 빌드
-# Node.js 18 기반, 프로덕션 최적화 이미지
+# SummaryGenie Server - Google Cloud Run 최적화 빌드 (프로덕션)
+# Node.js 18 기반, Firebase 실제 인증, 포트 3000
 # ===================================================================
 
 # ===== Stage 1: Dependencies =====
@@ -21,8 +21,8 @@ FROM node:18-alpine AS production
 
 # 메타데이터
 LABEL maintainer="SummaryGenie Team"
-LABEL version="2.0.0"
-LABEL description="AI-powered web summarization service for Google Cloud Run"
+LABEL version="2.1.0"
+LABEL description="AI-powered web summarization service - Production Build"
 
 # 비루트 사용자 생성 (보안)
 RUN addgroup -g 1001 -S nodejs && \
@@ -37,49 +37,66 @@ COPY --from=dependencies --chown=nodejs:nodejs /app/node_modules ./node_modules
 # 애플리케이션 소스 복사
 COPY --chown=nodejs:nodejs . .
 
-# 환경변수 설정 (Cloud Run 기본값)
+# 🔥 Firebase 서비스 계정 키 복사 (프로덕션 필수)
+# ⚠️ 주의: .dockerignore에서 serviceAccountKey.json 제외 필요
+COPY --chown=nodejs:nodejs serviceAccountKey.json /serviceAccountKey.json
+
+# ===== 환경변수 기본값 설정 =====
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV PORT=3000
 
-# ===== Cloud Run 최적화 헬스체크 =====
-# Cloud Run은 자체 헬스체크를 수행하지만, 
-# 로컬 테스트나 다른 환경에서도 유용함
+# 애플리케이션 설정
+ENV FREE_USER_DAILY_LIMIT=3
+ENV DATA_RETENTION_DAYS=30
+ENV RATE_LIMIT_WINDOW_MS=60000
+ENV RATE_LIMIT_MAX_REQUESTS=30
+ENV CACHE_TTL=60000
+
+# ===== 헬스체크 설정 =====
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+    CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# 포트 노출 (Cloud Run은 8080 포트 사용)
-EXPOSE 8080
+# 포트 노출
+EXPOSE 3000
 
 # 비루트 사용자로 전환 (보안 강화)
 USER nodejs
 
 # ===== 애플리케이션 시작 =====
-# Cloud Run은 PORT 환경변수를 동적으로 할당하므로
-# server.js에서 process.env.PORT를 읽도록 구현 필요
 CMD ["node", "src/server.js"]
 
 # ===================================================================
 # 빌드 및 실행 명령어:
 #
-# 1. 로컬 이미지 빌드:
-#    docker build -t summarygenie-server:latest .
+# 1. 프로덕션 이미지 빌드:
+#    docker build -t summarygenie-server:production .
 #
 # 2. 로컬 테스트 실행:
-#    docker run -p 8080:8080 \
-#      -e OPENAI_API_KEY=sk-xxx \
-#      -e JWT_SECRET=your-secret \
-#      summarygenie-server:latest
+#    docker run -d \
+#      --name summarygenie-server \
+#      -p 3000:3000 \
+#      -e OPENAI_API_KEY=your-key \
+#      -e JWT_SECRET=your-secret-min-32-chars \
+#      -e ALLOWED_EXTENSION_IDS=your-extension-id \
+#      -e NODE_ENV=production \
+#      -e FREE_USER_DAILY_LIMIT=3 \
+#      --restart unless-stopped \
+#      summarygenie-server:production
 #
-# 3. Cloud Run 배포용 빌드 & 푸시:
-#    docker build -t gcr.io/PROJECT_ID/summarygenie-server:v1 .
-#    docker push gcr.io/PROJECT_ID/summarygenie-server:v1
+# 3. 환경변수 확인:
+#    docker exec summarygenie-server env | grep FREE_USER_DAILY_LIMIT
 #
-# 4. Cloud Run 배포:
+# 4. 로그 확인:
+#    docker logs -f summarygenie-server
+#
+# 5. Cloud Run 배포:
 #    gcloud run deploy summarygenie-server \
 #      --image gcr.io/PROJECT_ID/summarygenie-server:v1 \
 #      --platform managed \
 #      --region asia-northeast3 \
 #      --allow-unauthenticated \
 #      --memory 512Mi \
-#      --cpu 1
+#      --cpu 1 \
+#      --port 3000 \
+#      --set-env-vars FREE_USER_DAILY_LIMIT=3
 # ===================================================================

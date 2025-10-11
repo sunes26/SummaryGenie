@@ -1,6 +1,6 @@
 /**
  * SummaryGenie 로그인/회원가입 페이지 스타일
- * Material Design 기반 UI
+ * Material Design 기반 UI + 다국어 지원
  */
 
 /* 기본 리셋 */
@@ -53,12 +53,59 @@ body {
   background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
   color: white;
   border-radius: 16px 16px 0 0;
+  position: relative;
+}
+
+/* 언어 선택 드롭다운 */
+.language-selector {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 10;
+}
+
+.language-select {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.language-select:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.language-select:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: white;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+.language-select option {
+  background: white;
+  color: #333;
+  padding: 8px;
 }
 
 .logo {
   margin-bottom: 12px;
   display: flex;
   justify-content: center;
+}
+
+.logo-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .app-title {
@@ -532,7 +579,7 @@ input.error:focus {
   outline-offset: 2px;
 }
 
-/* 스크롤바 스타일링 (선택사항) */
+/* 스크롤바 스타일링 */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -564,6 +611,16 @@ input.error:focus {
   
   .auth-header {
     border-radius: 0;
+  }
+  
+  .language-selector {
+    top: 12px;
+    right: 12px;
+  }
+  
+  .language-select {
+    font-size: 12px;
+    padding: 5px 10px;
   }
 }
 

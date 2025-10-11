@@ -2,12 +2,15 @@
  * SummaryGenie API Service
  * OpenAI API 및 히스토리 API 호출을 관리하는 모듈
  * 
- * ✨ v3.2.0 업데이트:
+ * ✨ v3.3.0 업데이트:
+ * - 다국어 프롬프트 지원 (한국어, 영어, 일본어, 중국어)
+ * - 인터페이스 언어에 따라 GPT 응답 언어 자동 변경
  * - 프록시 모드에서 JWT 토큰 전송 추가 (게스트 사용자 문제 해결)
  * - title, url을 서버로 전송하여 요약 상세 정보 저장
+ * - 상세한 에러 로깅 추가 (디버깅 개선)
  * 
  * @module api-service
- * @version 3.2.0
+ * @version 3.3.0
  */
 
 class APIService {
@@ -220,7 +223,7 @@ async getAuthToken() {
 
   /**
    * OpenAI API 호출
-   * ✨ v3.2.0 수정: 프록시 모드에서 JWT 토큰 전송
+   * ✨ v3.3.0 수정: 상세한 에러 로깅 추가
    * 
    * @param {string} prompt - 프롬프트
    * @param {Object} config - API 설정
@@ -279,9 +282,22 @@ async getAuthToken() {
         
         console.log('[APIService] 페이지 정보 포함:', {
           title: pageInfo.title,
-          url: pageInfo.url
+          url: pageInfo.url,
+          language: body.language
         });
       }
+
+      // 🔍 전송할 body 로그 출력 (디버깅용)
+      console.log('[APIService] 요청 URL:', url);
+      console.log('[APIService] 전송할 body:', JSON.stringify({
+        model: body.model,
+        messages: body.messages.map(m => ({ role: m.role, contentLength: m.content.length })),
+        max_tokens: body.max_tokens,
+        temperature: body.temperature,
+        title: body.title ? body.title.substring(0, 50) + '...' : undefined,
+        url: body.url ? body.url.substring(0, 50) + '...' : undefined,
+        language: body.language
+      }, null, 2));
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -298,6 +314,14 @@ async getAuthToken() {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         
+        // 🔍 상세한 에러 로그 출력
+        console.error('[APIService] 서버 응답 에러:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          errorData: errorData
+        });
+        
         if (response.status === 404) {
           throw new Error(
             '프록시 서버에 연결할 수 없습니다.\n\n' +
@@ -308,8 +332,11 @@ async getAuthToken() {
           );
         }
         
+        // 서버에서 보낸 상세 에러 메시지 우선 사용
         throw new Error(
+          errorData.message ||
           errorData.error?.message || 
+          (errorData.details ? JSON.stringify(errorData.details) : null) ||
           `API 요청 실패: ${response.status}`
         );
       }
@@ -317,9 +344,11 @@ async getAuthToken() {
       const data = await response.json();
       
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        console.error('[APIService] 유효하지 않은 응답:', data);
         throw new Error('유효하지 않은 API 응답 형식입니다');
       }
 
+      console.log('[APIService] API 호출 성공');
       return data.choices[0].message.content.trim();
 
     } catch (error) {
@@ -449,14 +478,43 @@ async getAuthToken() {
     }
   }
 
+  /**
+   * 언어별 요약 프롬프트 템플릿
+   * @param {string} content - 요약할 콘텐츠
+   * @param {string} length - 요약 길이
+   * @param {string} language - 언어 코드 (ko, en, ja, zh)
+   * @returns {string} 언어에 맞는 프롬프트
+   */
   buildSummaryPrompt(content, length) {
-    const lengthGuide = {
-      short: '2-3문장으로 핵심만 간단히',
-      medium: '4-5문장으로 주요 내용을',
-      detailed: '7-10문장으로 자세히'
+    const currentLanguage = window.languageManager?.getCurrentLanguage() || 'ko';
+    
+    // 언어별 길이 가이드
+    const lengthGuides = {
+      ko: {
+        short: '2-3문장으로 핵심만 간단히',
+        medium: '4-5문장으로 주요 내용을',
+        detailed: '7-10문장으로 자세히'
+      },
+      en: {
+        short: 'briefly in 2-3 sentences focusing on key points',
+        medium: 'in 4-5 sentences covering main content',
+        detailed: 'in detail using 7-10 sentences'
+      },
+      ja: {
+        short: '2-3文で簡潔に要点のみ',
+        medium: '4-5文で主な内容を',
+        detailed: '7-10文で詳しく'
+      },
+      zh: {
+        short: '用2-3句话简要概括要点',
+        medium: '用4-5句话概括主要内容',
+        detailed: '用7-10句话详细概括'
+      }
     };
 
-    return `다음 웹페이지 내용을 ${lengthGuide[length]} 요약해주세요.
+    // 언어별 프롬프트 템플릿
+    const prompts = {
+      ko: `다음 웹페이지 내용을 ${lengthGuides.ko[length]} 요약해주세요.
 
 웹페이지 내용:
 ${content}
@@ -467,28 +525,113 @@ ${content}
 - 불필요한 수식어 제거
 - 객관적이고 중립적인 표현 사용
 
-요약:`;
+요약:`,
+
+      en: `Please summarize the following webpage content ${lengthGuides.en[length]}.
+
+Webpage content:
+${content}
+
+Important notes:
+- Clearly convey the key points
+- Accurately reflect the original intent
+- Remove unnecessary embellishments
+- Use objective and neutral expressions
+
+Summary:`,
+
+      ja: `以下のウェブページの内容を${lengthGuides.ja[length]}要約してください。
+
+ウェブページの内容:
+${content}
+
+要約の注意事項:
+- 核心内容を明確に伝える
+- 原文の意図を正確に反映
+- 不要な修飾語を削除
+- 客観的で中立的な表現を使用
+
+要約:`,
+
+      zh: `请${lengthGuides.zh[length]}以下网页内容。
+
+网页内容:
+${content}
+
+注意事项:
+- 清楚地传达核心内容
+- 准确反映原文意图
+- 删除不必要的修饰语
+- 使用客观中立的表达
+
+摘要:`
+    };
+
+    return prompts[currentLanguage] || prompts.ko;
   }
 
+  /**
+   * 언어별 질문 프롬프트 템플릿
+   * @param {string} context - 웹페이지 컨텍스트
+   * @param {string} question - 사용자 질문
+   * @param {Array} qaHistory - 이전 질문/답변 기록
+   * @returns {string} 언어에 맞는 프롬프트
+   */
   buildQuestionPrompt(context, question, qaHistory) {
-    let prompt = `다음은 웹페이지의 내용입니다:
+    const currentLanguage = window.languageManager?.getCurrentLanguage() || 'ko';
+    
+    // 언어별 템플릿
+    const templates = {
+      ko: {
+        contextLabel: '다음은 웹페이지의 내용입니다:',
+        historyLabel: '이전 질문/답변:',
+        currentQuestionLabel: '현재 질문:',
+        instruction: '위 웹페이지 내용을 바탕으로 질문에 정확하고 자세하게 답변해주세요.',
+        answerLabel: '답변:'
+      },
+      en: {
+        contextLabel: 'Here is the webpage content:',
+        historyLabel: 'Previous Q&A:',
+        currentQuestionLabel: 'Current question:',
+        instruction: 'Please answer the question accurately and in detail based on the webpage content above.',
+        answerLabel: 'Answer:'
+      },
+      ja: {
+        contextLabel: '以下はウェブページの内容です:',
+        historyLabel: '以前の質問/回答:',
+        currentQuestionLabel: '現在の質問:',
+        instruction: '上記のウェブページ内容に基づいて、質問に正確かつ詳しく答えてください。',
+        answerLabel: '回答:'
+      },
+      zh: {
+        contextLabel: '以下是网页内容:',
+        historyLabel: '之前的问答:',
+        currentQuestionLabel: '当前问题:',
+        instruction: '请根据上述网页内容准确详细地回答问题。',
+        answerLabel: '回答:'
+      }
+    };
+
+    const t = templates[currentLanguage] || templates.ko;
+    
+    let prompt = `${t.contextLabel}
 
 ${context}
 
 `;
 
     if (qaHistory && qaHistory.length > 0) {
-      prompt += `이전 질문/답변:\n`;
+      prompt += `${t.historyLabel}\n`;
       qaHistory.slice(-3).forEach((qa, index) => {
         prompt += `Q${index + 1}: ${qa.question}\nA${index + 1}: ${qa.answer}\n\n`;
       });
     }
 
-    prompt += `현재 질문: ${question}
+    prompt += `${t.currentQuestionLabel} ${question}
 
-위 웹페이지 내용을 바탕으로 질문에 정확하고 자세하게 답변해주세요.
+${t.instruction}
 
-답변:`;
+${t.answerLabel}`;
 
     return prompt;
   }

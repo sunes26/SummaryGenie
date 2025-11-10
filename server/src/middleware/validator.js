@@ -130,10 +130,32 @@ const chatValidator = [
     .optional()
     .isString().withMessage('url은 문자열이어야 합니다')
     .trim()
-    .isURL({ 
-      protocols: ['http', 'https'],
-      require_protocol: true 
-    }).withMessage('유효한 URL이 아닙니다 (http:// 또는 https:// 포함)')
+    .custom((value, { req }) => {
+      // PDF인 경우: file://, chrome-extension:// 프로토콜 허용
+      if (req.body.isPDF === true) {
+        const validPdfProtocols = ['http://'  , 'https://' , 'file://' , 'chrome-extension://' ];
+        const hasValidProtocol = validPdfProtocols.some(protocol => 
+          value.toLowerCase().startsWith(protocol)
+        );
+        
+        if (!hasValidProtocol) {
+          throw new Error('PDF URL은 http://, https://, file://, 또는 chrome-extension:// 프로토콜이어야 합니다');
+        }
+        
+        return true;
+      }
+      
+      // 일반 웹페이지: 기존 검증 (http/https만)
+      const validator = require('validator');
+      if (!validator.isURL(value, { 
+        protocols: ['http', 'https'],
+        require_protocol: true 
+      })) {
+        throw new Error('유효한 URL이 아닙니다 (http:// 또는 https:// 포함)');
+      }
+      
+      return true;
+    })
     .isLength({ max: 2048 }).withMessage('URL은 최대 2048자까지 가능합니다'),
 
   // 🆕 language 검증 (선택) - 히스토리 저장용
@@ -146,6 +168,13 @@ const chatValidator = [
   body('saveHistory')
     .optional()
     .isBoolean().withMessage('saveHistory는 boolean이어야 합니다')
+    .toBoolean()
+  ,
+
+  // 🆕 isPDF 플래그 검증 (선택) - PDF 요약 여부 (Phase 2)
+  body('isPDF')
+    .optional()
+    .isBoolean().withMessage('isPDF는 boolean이어야 합니다')
     .toBoolean()
 ];
 

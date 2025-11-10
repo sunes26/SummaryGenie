@@ -1,8 +1,15 @@
 /**
+ * extension\modules\token-manager.js
  * JWT 토큰 관리 모듈
  * Access Token과 Refresh Token의 저장, 조회, 검증, 갱신을 담당
  * 
- * @version 1.2.0
+ * @version 2.0.0 - Firebase SDK 기반 토큰 갱신
+ * 
+ * ✨ v2.0.0 주요 변경사항:
+ * - refreshAccessToken() 함수를 Firebase SDK 사용으로 변경
+ * - 백엔드 API 호출 제거 (/api/auth/refresh 엔드포인트 불필요)
+ * - Firebase 자동 토큰 갱신 활용
+ * 
  * Universal Module: 브라우저 환경과 Service Worker 모두 지원
  */
 
@@ -104,7 +111,7 @@ class TokenManager {
 
       await chrome.storage.local.set({ tokens: tokenData });
       
-      console.log('[TokenManager] Tokens saved successfully');
+      console.log('[TokenManager] ✅ Tokens saved successfully');
 
       // 토큰 갱신 알람 설정
       this.scheduleTokenRefresh(accessToken);
@@ -168,9 +175,15 @@ class TokenManager {
   }
 
   /**
-   * Access Token 갱신
+   * ✨ Access Token 갱신 - Firebase SDK 사용
+   * 
    * @returns {Promise<string>} - 새로운 액세스 토큰
    * @throws {Error} - 갱신 실패시
+   * 
+   * ✨ v2.0.0 주요 변경:
+   * - 백엔드 API 호출 제거 (/api/auth/refresh 엔드포인트 불필요)
+   * - Firebase SDK의 getIdToken(true) 사용
+   * - Firebase가 자동으로 토큰 갱신 처리
    */
   async refreshAccessToken() {
     // 이미 갱신 중이면 기다림 (동시 갱신 방지)
@@ -183,71 +196,70 @@ class TokenManager {
     this.isRefreshing = true;
 
     try {
-      const refreshToken = await this.getRefreshToken();
-      
-      if (!refreshToken) {
-        // Refresh Token이 없음 (로그인 안 한 상태)
-        const error = new Error('로그인이 필요합니다.');
-        error.code = 'NO_REFRESH_TOKEN';
+      // ✨ 1. Firebase Auth 객체 확인
+      if (typeof firebase === 'undefined' || !firebase.auth || !firebase.auth()) {
+        const error = new Error('Firebase Auth를 사용할 수 없습니다');
+        error.code = 'FIREBASE_NOT_AVAILABLE';
         throw error;
       }
 
-      console.log('[TokenManager] Refreshing access token...');
+      // ✨ 2. 현재 로그인한 사용자 확인
+      const currentUser = firebase.auth().currentUser;
 
-      const response = await fetch(`${this.API_BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ refreshToken })
-      });
-
-      if (!response.ok) {
-        // Refresh Token도 만료된 경우
-        if (response.status === 401 || response.status === 403) {
-          await this.clearTokens();
-          const error = new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
-          error.code = 'REFRESH_TOKEN_EXPIRED';
-          throw error;
-        }
-        
-        const error = new Error('토큰 갱신에 실패했습니다.');
-        error.code = 'REFRESH_FAILED';
+      if (!currentUser) {
+        // Firebase에 로그인 안 된 상태
+        const error = new Error('로그인이 필요합니다');
+        error.code = 'NO_CURRENT_USER';
         throw error;
       }
 
-      const data = await response.json();
+      console.log('[TokenManager] 🔄 Firebase 토큰 갱신 시작...');
 
-      if (!data.success || !data.data.accessToken) {
-        const error = new Error('유효하지 않은 토큰 응답입니다.');
-        error.code = 'INVALID_RESPONSE';
-        throw error;
-      }
+      // ✨ 3. Firebase SDK로 토큰 강제 갱신 (force refresh)
+      const newIdToken = await currentUser.getIdToken(true);
 
-      const newAccessToken = data.data.accessToken;
-      const newRefreshToken = data.data.refreshToken || refreshToken;
+      // ✨ 4. 새 Refresh Token도 가져오기
+      const newRefreshToken = currentUser.refreshToken;
 
-      // 새로운 토큰 저장
-      await this.saveTokens(newAccessToken, newRefreshToken);
+      // ✨ 5. 새 토큰 저장
+      await this.saveTokens(newIdToken, newRefreshToken);
 
-      console.log('[TokenManager] Token refreshed successfully');
+      console.log('[TokenManager] ✅ 토큰 갱신 성공');
 
       // 대기 중인 요청들에게 새 토큰 전달
       this.refreshSubscribers.forEach(subscriber => {
-        subscriber.resolve(newAccessToken);
+        subscriber.resolve(newIdToken);
       });
       this.refreshSubscribers = [];
 
-      return newAccessToken;
+      return newIdToken;
 
     } catch (error) {
-      console.error('[TokenManager] Refresh token error:', error);
+      console.error('[TokenManager] ❌ 토큰 갱신 실패:', error);
 
       // 대기 중인 요청들에게 에러 전달
       this.refreshSubscribers.forEach(subscriber => {
         subscriber.reject(error);
       });
       this.refreshSubscribers = [];
+
+      // 에러 코드에 따라 적절한 메시지 설정
+      if (error.code === 'FIREBASE_NOT_AVAILABLE') {
+        throw new Error('Firebase를 초기화할 수 없습니다');
+      }
+      
+      if (error.code === 'NO_CURRENT_USER') {
+        throw new Error('로그인이 필요합니다');
+      }
+
+      // Firebase 특정 에러
+      if (error.code === 'auth/user-token-expired') {
+        throw new Error('인증이 만료되었습니다. 다시 로그인해주세요');
+      }
+
+      if (error.code === 'auth/network-request-failed') {
+        throw new Error('네트워크 연결을 확인해주세요');
+      }
 
       throw error;
     } finally {
@@ -321,7 +333,9 @@ class TokenManager {
       isAuthenticated: true,
       isExpired,
       timeUntilExpiry,
+      timeUntilExpiryMinutes: Math.floor(timeUntilExpiry / 60000),
       expiresAt: decoded?.exp ? new Date(decoded.exp * 1000).toISOString() : null,
+      hasRefreshToken: !!refreshToken,
       user: {
         id: decoded?.sub || decoded?.userId,
         email: decoded?.email
@@ -353,4 +367,4 @@ if (typeof globalThis !== 'undefined') {
   globalThis.tokenManager = tokenManager;
 }
 
-console.log('[TokenManager] Module loaded and exposed globally');
+console.log('[TokenManager] ✅ Module loaded (v2.0.0 - Firebase SDK)');

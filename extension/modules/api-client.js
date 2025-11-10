@@ -1,4 +1,5 @@
 /**
+ * extension\modules\api-client.js
  * 백엔드 API 통신을 처리하는 클라이언트 클래스
  * JWT 토큰 자동 관리, 재시도 로직, 에러 처리 등을 포함
  * 

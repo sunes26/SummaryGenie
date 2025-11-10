@@ -1,4 +1,5 @@
 ﻿/**
+ * extension\modules\utils.js
  * SummaryGenie Utility Functions (단순화 버전)
  * 공통 유틸리티 함수 모음
  * 
@@ -165,6 +166,7 @@ function formatDate(date, options = null, language = 'ko') {
     return String(date);
   }
 }
+
 /**
  * 오늘 날짜 문자열 반환
  * @returns {string} 오늘 날짜 문자열
@@ -329,19 +331,59 @@ function utf8ToBase64(str) {
 // ============================================
 
 /**
+ * PDF URL 확인
+ * ✨ v5.1 추가: PDF 감지 함수 (프리미엄 기능)
+ * 
+ * @param {string} url - 확인할 URL
+ * @returns {boolean} PDF 여부
+ */
+function isPDFUrl(url) {
+  if (typeof url !== 'string') return false;
+  
+  // 1. URL이 .pdf로 끝나는 경우
+  if (url.toLowerCase().endsWith('.pdf')) {
+    return true;
+  }
+  
+  // 2. Chrome PDF Viewer (chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/)
+  if (url.includes('chrome-extension://') && url.includes('.pdf')) {
+    return true;
+  }
+  
+  // 3. file:// 프로토콜의 PDF
+  if (url.startsWith('file://') && url.toLowerCase().includes('.pdf')) {
+    return true;
+  }
+  
+  // 4. URL 파라미터에 .pdf가 포함된 경우 (일부 사이트)
+  if (url.includes('.pdf?') || url.includes('.pdf#')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * 제한된 페이지 확인
+ * ✨ v5.1 수정: PDF는 프리미엄 기능으로 별도 처리하므로 제한에서 제외
+ * 
  * @param {string} url - 확인할 URL
  * @returns {boolean} 제한된 페이지 여부
  */
 function isRestrictedPage(url) {
   if (typeof url !== 'string') return true;
   
+  // 🆕 PDF는 프리미엄 기능으로 별도 처리하므로 제한 페이지에서 제외
+  if (isPDFUrl(url)) {
+    return false;
+  }
+  
   const restrictedPatterns = [
     'chrome://',
     'chrome-extension://',
     'edge://',
     'about:',
-    'file://',
+    'file://', // file://는 PDF가 아닌 경우에만 제한
     'chrome.google.com'
   ];
   
@@ -384,5 +426,6 @@ window.debounce = debounce;
 window.throttle = throttle;
 window.deepClone = deepClone;
 window.utf8ToBase64 = utf8ToBase64;
+window.isPDFUrl = isPDFUrl;
 window.isRestrictedPage = isRestrictedPage;
 window.generateId = generateId;

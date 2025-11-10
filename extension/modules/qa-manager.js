@@ -1,4 +1,5 @@
 ﻿/**
+ * extension\modules\qa-manager.js
  * SummaryGenie Q&A Manager (ErrorHandler 통합 + 메모리 최적화 버전)
  * 질문/답변 기능을 관리하는 모듈
  * 
@@ -89,61 +90,67 @@ class QAManager {
    * @param {string} question - 사용자 질문
    * @returns {Promise<string>} 답변
    */
-  async processQuestion(question) {
-    try {
-      if (!question || typeof question !== 'string') {
-        throw new Error('유효하지 않은 질문입니다');
-      }
-      
-      const trimmedQuestion = question.trim();
-      
-      if (trimmedQuestion.length === 0) {
-        throw new Error('질문을 입력해주세요');
-      }
-      
-      if (trimmedQuestion.length > 2000) {
-        throw new Error('질문이 너무 깁니다 (최대 2000자)');
-      }
-
-      if (!this.currentContext) {
-        throw new Error('컨텍스트가 설정되지 않았습니다');
-      }
-
-      window.uiManager.showProcessingAnswer();
-      
-      const answer = await window.apiService.askQuestion(
-        this.currentContext, 
-        trimmedQuestion, 
-        this.currentQAHistory
-      );
-      
-      if (!answer || typeof answer !== 'string') {
-        throw new Error('유효하지 않은 답변입니다');
-      }
-      
-      if (answer.length > 10000) {
-        throw new Error('답변이 너무 깁니다');
-      }
-      
-      await this.addToSessionHistory(trimmedQuestion, answer);
-      
-      if (this.currentHistoryId) {
-        await this.saveToHistory(trimmedQuestion, answer);
-      }
-      
-      window.uiManager.displayAnswer(answer);
-      window.uiManager.clearQuestionInput();
-      
-      return answer;
-      
-    } catch (error) {
-      window.errorHandler.handle(error, 'QAManager.processQuestion');
-      throw error;
-      
-    } finally {
-      window.uiManager.endProcessingAnswer();
+async processQuestion(question) {
+  try {
+    if (!question || typeof question !== 'string') {
+      throw new Error('유효하지 않은 질문입니다');
     }
+    
+    const trimmedQuestion = question.trim();
+    
+    if (trimmedQuestion.length === 0) {
+      throw new Error('질문을 입력해주세요');
+    }
+    
+    if (trimmedQuestion.length > 2000) {
+      throw new Error('질문이 너무 깁니다 (최대 2000자)');
+    }
+
+    if (!this.currentContext) {
+      throw new Error('컨텍스트가 설정되지 않았습니다');
+    }
+
+    window.uiManager.showProcessingAnswer();
+    
+    const answer = await window.apiService.askQuestion(
+      this.currentContext, 
+      trimmedQuestion, 
+      this.currentQAHistory
+    );
+    
+    if (!answer || typeof answer !== 'string') {
+      throw new Error('유효하지 않은 답변입니다');
+    }
+    
+    if (answer.length > 10000) {
+      throw new Error('답변이 너무 깁니다');
+    }
+    
+    await this.addToSessionHistory(trimmedQuestion, answer);
+    
+    if (this.currentHistoryId) {
+      await this.saveToHistory(trimmedQuestion, answer);
+    }
+    
+    // ✅ displayAnswer 호출 제거 (히스토리 목록에만 표시)
+    window.uiManager.clearQuestionInput();
+    
+    // ✅ 실시간 답변 영역 숨기기
+    const answerResult = document.getElementById('answerResult');
+    if (answerResult) {
+      answerResult.classList.add('hidden');
+    }
+    
+    return answer;
+    
+  } catch (error) {
+    window.errorHandler.handle(error, 'QAManager.processQuestion');
+    throw error;
+    
+  } finally {
+    window.uiManager.endProcessingAnswer();
   }
+}
 
   /**
    * 세션 Q&A 히스토리에 추가

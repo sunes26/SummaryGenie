@@ -47,6 +47,51 @@
   "apiSettings": {
     "message": "API设置"
   },
+  "apiMode": {
+    "message": "API连接方式"
+  },
+  "proxyServer": {
+    "message": "代理服务器（推荐）"
+  },
+  "directConnection": {
+    "message": "直接连接（开发用）"
+  },
+  "proxyServerHelp": {
+    "message": "使用代理服务器可以安全保护您的API密钥。"
+  },
+  "proxyUrl": {
+    "message": "代理服务器URL"
+  },
+  "proxyUrlHelp": {
+    "message": "输入后端代理服务器地址。"
+  },
+  "apiKey": {
+    "message": "OpenAI API密钥"
+  },
+  "showHide": {
+    "message": "显示/隐藏"
+  },
+  "apiKeyWarning": {
+    "message": "⚠️ 出于安全考虑，不推荐直接连接。仅供开发和测试使用。"
+  },
+  "usageStatistics": {
+    "message": "使用量统计"
+  },
+  "todayUsage": {
+    "message": "今日使用"
+  },
+  "weeklyUsage": {
+    "message": "本周"
+  },
+  "monthlyUsage": {
+    "message": "本月"
+  },
+  "totalUsage": {
+    "message": "总使用量"
+  },
+  "recentUsageChart": {
+    "message": "最近7天使用量"
+  },
   "historyManagement": {
     "message": "历史记录管理"
   },
@@ -61,6 +106,104 @@
   },
   "deleteHistory": {
     "message": "删除历史"
+  },
+  "cloudSync": {
+    "message": "云同步"
+  },
+  "syncStatus": {
+    "message": "同步状态"
+  },
+  "lastSync": {
+    "message": "最后同步"
+  },
+  "pendingItems": {
+    "message": "待处理项目"
+  },
+  "syncToCloud": {
+    "message": "同步到云端"
+  },
+  "manualSync": {
+    "message": "手动同步"
+  },
+  "online": {
+    "message": "在线"
+  },
+  "offline": {
+    "message": "离线"
+  },
+  "neverSynced": {
+    "message": "未同步"
+  },
+  "syncing": {
+    "message": "同步中..."
+  },
+  "synced": {
+    "message": "已同步"
+  },
+  "pendingSyncItems": {
+    "message": "$1个待同步",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "syncCompleted": {
+    "message": "$1个项目同步完成",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "syncFailed": {
+    "message": "同步失败"
+  },
+  "confirmCloudSync": {
+    "message": "上传本地历史到云端？之后您可以在所有设备上使用历史记录。"
+  },
+  "upload": {
+    "message": "上传"
+  },
+  "cloudSyncSuccess": {
+    "message": "同步完成！总计$1个（上传：$2，下载：$3）",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "20"
+      },
+      "uploaded": {
+        "content": "$2",
+        "example": "10"
+      },
+      "downloaded": {
+        "content": "$3",
+        "example": "10"
+      }
+    }
+  },
+  "cloudSyncFailed": {
+    "message": "云同步失败"
+  },
+  "noItemsToSync": {
+    "message": "没有要同步的项目"
+  },
+  "keyboardShortcuts": {
+    "message": "键盘快捷键"
+  },
+  "summarizePage": {
+    "message": "摘要当前页面"
+  },
+  "focusQuestion": {
+    "message": "聚焦问题输入框"
+  },
+  "openHistory": {
+    "message": "打开历史"
+  },
+  "closePopup": {
+    "message": "关闭弹窗"
   },
   "information": {
     "message": "信息"
@@ -315,6 +458,54 @@
   "errorCriticalTitle": {
     "message": "错误发生"
   },
+  "errorLoadHistory": {
+    "message": "无法加载历史"
+  },
+  "errorSaveHistory": {
+    "message": "无法保存历史"
+  },
+  "errorAddHistory": {
+    "message": "无法添加历史"
+  },
+  "errorExportHistory": {
+    "message": "无法导出历史"
+  },
+  "advancedSettings": {
+    "message": "高级设置"
+  },
+  "autoSummarize": {
+    "message": "页面加载时自动摘要"
+  },
+  "saveHistory": {
+    "message": "保存摘要历史"
+  },
+  "historyLimit": {
+    "message": "历史限制"
+  },
+  "enableContextMenu": {
+    "message": "启用上下文菜单"
+  },
+  "errorNetwork": {
+    "message": "发生网络错误"
+  },
+  "errorApiKey": {
+    "message": "API密钥未设置"
+  },
+  "errorStorageQuota": {
+    "message": "存储空间不足"
+  },
+  "errorValidation": {
+    "message": "输入值无效"
+  },
+  "errorTimeout": {
+    "message": "请求超时"
+  },
+  "errorPermission": {
+    "message": "需要权限"
+  },
+  "errorCritical": {
+    "message": "发生严重错误"
+  },
   "upgradeToPremium": {
     "message": "升级到高级版"
   },
@@ -392,27 +583,6 @@
   },
   "addquestions": {
     "message": "添加提问功能"
-  },
-  "historyFeatureTitle": {
-    "message": "历史记录功能"
-  },
-  "historyFeatureDescription": {
-    "message": "保存您的摘要记录<br>随时查看！"
-  },
-  "overlayHint": {
-    "message": "💡 免费计划不可用"
-  },
-  "loadingHistory": {
-    "message": "正在加载历史记录..."
-  },
-  "historySynced": {
-    "message": "从服务器获取了$1条历史记录",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "10"
-      }
-    }
   },
   "login": {
     "message": "登录"
@@ -495,16 +665,50 @@
   "language": {
     "message": "语言"
   },
+  "historyFeatureTitle": {
+    "message": "历史记录功能"
+  },
+  "historyFeatureDescription": {
+    "message": "保存您的摘要记录<br>随时查看！"
+  },
+  "overlayHint": {
+    "message": "💡 免费计划不可用"
+  },
+  "loadingHistory": {
+    "message": "正在加载历史记录..."
+  },
+  "historySynced": {
+    "message": "从服务器获取了$1条历史记录",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
   "questionFeatureTitle": {
-  "message": "提问功能"
+    "message": "提问功能"
+  },
+  "questionFeatureDescription": {
+    "message": "提出额外问题<br>深入理解！"
+  },
+  "proPlanDescription": {
+    "message": "您目前正在使用高级计划。"
+  },
+  "manageSubscription": {
+    "message": "管理订阅"
+  },
+  "summarizePagePrompt": {
+  "message": "请总结以下网页内容:"
 },
-"questionFeatureDescription": {
-  "message": "提出额外问题<br>深入理解！"
+"webpageContext": {
+  "message": "网页内容:"
 },
-"proPlanDescription": {
-  "message": "您目前正在使用高级计划。"
+"previousConversation": {
+  "message": "之前的对话:"
 },
-"manageSubscription": {
-  "message": "管理订阅"
+"questionPrompt": {
+  "message": "问题:"
 }
+
 }

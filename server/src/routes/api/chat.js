@@ -206,6 +206,39 @@ router.post('/',
         messageCount: messages.length
       });
       
+      // ===== 🆕 0. PDF 프리미엄 체크 (Phase 2) =====
+      // 📌 validator.js의 chatValidator에서 isPDF 플래그를 받아 URL 검증 방식이 달라짐:
+      //    - isPDF === true: file://, chrome-extension:// 프로토콜 허용
+      //    - isPDF === false: http://, https:// 프로토콜만 허용
+      const isPDFRequest = req.body.isPDF === true;
+      
+      if (isPDFRequest && !isPremium) {
+        console.warn(`[Chat] PDF 요약 차단 - 무료 사용자: ${userId}`);
+        
+        return res.status(HTTP_STATUS.FORBIDDEN).json({
+          error: true,
+          message: 'PDF 요약은 프리미엄 전용 기능입니다',
+          code: 'PDF_PREMIUM_REQUIRED',
+          statusCode: HTTP_STATUS.FORBIDDEN,
+          feature: 'PDF Summary',
+          isPDF: true,
+          upgrade: {
+            message: 'PDF 요약 기능을 사용하려면 프리미엄으로 업그레이드하세요',
+            benefits: [
+              'PDF 문서 무제한 요약',
+              '웹페이지 무제한 요약',
+              '히스토리 클라우드 저장',
+              '우선 지원'
+            ],
+            link: 'https://summarygenie.com/pricing'
+          }
+        });
+      }
+      
+      if (isPDFRequest && isPremium) {
+        console.log('[Chat] PDF 요약 허용 - 프리미엄 사용자:', userId);
+      }
+      
       // ===== 1. 사용량 체크 =====
       const canUse = await usageService.checkLimit(userId, isPremium);
       

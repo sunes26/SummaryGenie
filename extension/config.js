@@ -1,4 +1,5 @@
 /**
+ * extension\config.js
  * SummaryGenie 중앙 설정 파일
  * 환경별 API URL 및 앱 설정 관리
  * 
@@ -175,4 +176,29 @@ if (typeof module !== 'undefined' && module.exports) {
 // 브라우저 환경 (전역 변수)
 if (typeof window !== 'undefined') {
   window.CONFIG = CONFIG;
+}
+
+/**
+ * Firebase 설정
+ */
+CONFIG.FIREBASE = {
+  apiKey: "AIzaSyCgY7q7s_kLPoVWjJKajVfpyVOR_InqRWo",
+  authDomain: "badaai.firebaseapp.com",
+  projectId: "badaai",
+  storageBucket: "badaai.firebasestorage.app",
+  messagingSenderId: "203450855233",
+  appId: "1:203450855233:web:39e0ff6aea7c5b2f743bc0"
+};
+
+/**
+ * Firebase 설정 반환
+ * @returns {Object} Firebase Config
+ */
+CONFIG.getFirebaseConfig = function() {
+  return this.FIREBASE;
+};
+
+// Firebase 설정 출력 (디버그용)
+if (CONFIG.isDebug()) {
+  console.log('🔥 Firebase Config:', CONFIG.FIREBASE.projectId);
 }

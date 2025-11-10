@@ -1,4 +1,5 @@
 ﻿/**
+ * extension\modules\settings-manager.js
  * SummaryGenie Settings Manager (Simplified)
  * 설정 관리를 담당하는 모듈
  * 

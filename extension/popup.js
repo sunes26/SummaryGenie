@@ -1,21 +1,13 @@
 ﻿/**
+ * extension\popup.js
  * SummaryGenie Popup Main Script
- * Background Service Worker 없이 작동하는 버전 (전역 방식)
- * 
- * @version 3.5.0
- * 
- * 📝 v3.5.0 변경사항:
- * - 질문 섹션 프리미엄 오버레이 추가
- * - updateQuestionOverlayText() 메서드 추가
- * - checkPremiumAndToggleQuestion() 메서드 추가
- * - toggleQuestionSection() 메서드 추가
- * 
- * 📝 v3.4.0 변경사항:
- * - 실시간 사용량 업데이트 기능 추가
- *   1. Storage 변경 감지 (다른 탭에서 사용 시)
- *   2. Visibility 변경 감지 (popup 다시 열 때)
- *   3. Focus 이벤트 (popup에 포커스 시)
- *   4. 주기적 폴링 (30초마다)
+ * 요약 버튼 클릭 시 Side Panel로 리다이렉트
+ *
+ * ✨ v3.8.0 업데이트:
+ * - PDF 페이지 감지 및 프리미엄 체크 추가
+ * - handlePDFPage 메서드 구현
+ *
+ * @version 3.8.0
  */
 
 class AppController {
@@ -24,276 +16,55 @@ class AppController {
     this.currentPageInfo = {
       title: '',
       url: '',
-      domain: ''
+      domain: '',
+      isPDF: false, // 🆕 PDF 여부 추가
     };
-    this.currentSummary = '';
-    this.currentHistoryId = null;
     this.currentUser = null;
     this.usage = {
       daily: 0,
-      limit: 5
+      limit: 5,
     };
-    this.settingsUnsubscribe = null;
+    this.isPremium = false; // 🆕 프리미엄 여부 추가
     this.initialized = false;
-    
-    // 실시간 사용량 업데이트 리스너
-    this.storageChangeListener = null;
-    this.visibilityChangeListener = null;
-    this.focusListener = null;
-    this.usagePollingInterval = null;
   }
 
   async initialize() {
     if (this.initialized) {
       return;
     }
-    
+
     try {
-      console.log('[Security] Popup 초기화 시작');
-      
-      // Background 없이 직접 토큰 체크
+      console.log('[Popup] 초기화 시작');
+
       const isAuthenticated = await this.checkAuthStatusDirect();
-      
+
       if (!isAuthenticated) {
         console.log('[Auth] 로그인 필요 - 안내 화면 표시');
         this.showLoginRequiredScreen();
         return;
       }
-      
+
       await window.languageManager.initialize();
       await window.settingsManager.initialize();
-      await window.historyManager.initialize();
-      
+
       this.updateUITexts();
       await this.loadCurrentTab();
-      await window.qaManager.initialize();
       await this.checkUsage();
-      
-      // ✅ 질문 섹션 프리미엄 확인 (초기화 시)
-      await this.checkPremiumAndToggleQuestion();
-      
+
       this.setupEventListeners();
-      this.setupSettingsChangeListener();
-      this.setupRealtimeUsageUpdate(); // ✅ 실시간 사용량 업데이트 설정
       window.languageManager.applyLanguageFont();
-      
+
       this.displayUserInfo();
-      
+
       this.initialized = true;
-      console.log('[Security] Popup 초기화 완료');
-      
+      console.log('[Popup] 초기화 완료');
     } catch (error) {
-      console.error('[Security] 초기화 오류:', error);
+      console.error('[Popup] 초기화 오류:', error);
       window.errorHandler.handle(error, 'popup-initialization');
       this.showError('initializationError');
     }
   }
 
-  /**
-   * ✅ 질문 섹션 오버레이 텍스트만 업데이트 (언어 변경 시)
-   */
-  updateQuestionOverlayText() {
-    const questionSection = document.getElementById('questionSection');
-    
-    if (!questionSection) {
-      return;
-    }
-    
-    const overlay = questionSection.querySelector('.question-lock-overlay');
-    
-    if (overlay) {
-      // 기존 오버레이가 있으면 텍스트만 업데이트
-      const lockTitle = overlay.querySelector('.question-lock-title');
-      const lockDescription = overlay.querySelector('.question-lock-description');
-      const upgradeBtn = overlay.querySelector('#upgradeFromQuestion span:last-child');
-      const overlayHint = overlay.querySelector('.question-overlay-hint');
-      
-      if (lockTitle) {
-        lockTitle.textContent = window.languageManager.getMessage('questionFeatureTitle');
-      }
-      
-      if (lockDescription) {
-        lockDescription.innerHTML = window.languageManager.getMessage('questionFeatureDescription');
-      }
-      
-      if (upgradeBtn) {
-        upgradeBtn.textContent = window.languageManager.getMessage('upgradeToPremium');
-      }
-      
-      if (overlayHint) {
-        overlayHint.textContent = window.languageManager.getMessage('overlayHint');
-      }
-      
-      console.log('[Popup] 질문 섹션 오버레이 텍스트 업데이트 완료');
-    }
-  }
-
-  /**
-   * ✅ 프리미엄 상태 확인 및 질문 섹션 제어
-   */
-  async checkPremiumAndToggleQuestion() {
-    try {
-      console.log('[Popup] 질문 섹션 - 프리미엄 상태 확인 중...');
-      
-      let isPremium = false;
-      
-      // 방법 1: usageManager 사용 (서버 기반, 가장 정확)
-      if (window.usageManager) {
-        try {
-          const usageStatus = await window.usageManager.getUsageStatus();
-          isPremium = usageStatus.isPremium === true;
-          console.log('[Popup] usageManager 기반 프리미엄 상태:', isPremium);
-        } catch (usageError) {
-          console.warn('[Popup] usageManager 조회 실패, tokenManager로 대체');
-        }
-      }
-      
-      // 방법 2: tokenManager 사용 (백업)
-      if (!isPremium && window.tokenManager) {
-        try {
-          const token = await window.tokenManager.getAccessToken();
-          
-          if (token) {
-            const decoded = window.tokenManager.decodeToken(token);
-            isPremium = decoded?.isPremium === true;
-            console.log('[Popup] tokenManager 기반 프리미엄 상태:', isPremium);
-          }
-        } catch (tokenError) {
-          console.warn('[Popup] tokenManager 조회 실패');
-        }
-      }
-      
-      // 질문 섹션 제어
-      this.toggleQuestionSection(isPremium);
-      
-    } catch (error) {
-      console.error('[Popup] 질문 섹션 프리미엄 확인 오류:', error);
-      window.errorHandler.handle(error, 'check-premium-status-question');
-      
-      // 에러 시 안전하게 잠금 표시
-      this.toggleQuestionSection(false);
-    }
-  }
-
-  /**
-   * ✅ 질문 섹션 잠금/해제 (항상 오버레이)
-   * @param {boolean} isPremium - 프리미엄 사용자 여부
-   */
-  toggleQuestionSection(isPremium) {
-    const questionSection = document.getElementById('questionSection');
-    
-    if (!questionSection) {
-      console.warn('[Popup] 질문 섹션을 찾을 수 없습니다');
-      return;
-    }
-    
-    if (isPremium) {
-      // ✅ 프리미엄: 정상 표시
-      questionSection.style.position = '';
-      questionSection.style.minHeight = '';
-      questionSection.classList.remove('locked');
-      
-      // 기존 오버레이 제거
-      const existingOverlay = questionSection.querySelector('.question-lock-overlay');
-      if (existingOverlay) {
-        existingOverlay.remove();
-      }
-      
-      // 입력창 및 버튼 활성화
-      const questionInput = questionSection.querySelector('#questionInput');
-      const askBtn = questionSection.querySelector('#askBtn');
-      const clearQABtn = questionSection.querySelector('#clearQABtn');
-      
-      if (questionInput) {
-        questionInput.disabled = false;
-        questionInput.style.pointerEvents = 'auto';
-        questionInput.style.opacity = '1';
-      }
-      
-      if (askBtn) {
-        askBtn.disabled = false;
-        askBtn.style.pointerEvents = 'auto';
-        askBtn.style.opacity = '1';
-      }
-      
-      if (clearQABtn) {
-        clearQABtn.disabled = false;
-        clearQABtn.style.pointerEvents = 'auto';
-        clearQABtn.style.opacity = '1';
-      }
-      
-      console.log('[Popup] ✅ 질문 섹션 활성화 (프리미엄 사용자)');
-      
-    } else {
-      // ❌ 무료: 잠금 오버레이 표시
-      questionSection.style.position = 'relative';
-      questionSection.style.minHeight = '180px';
-      questionSection.classList.add('locked');
-      
-      // 입력창 및 버튼 비활성화
-      const questionInput = questionSection.querySelector('#questionInput');
-      const askBtn = questionSection.querySelector('#askBtn');
-      const clearQABtn = questionSection.querySelector('#clearQABtn');
-      
-      if (questionInput) {
-        questionInput.disabled = true;
-        questionInput.style.pointerEvents = 'none';
-        questionInput.style.opacity = '0.3';
-      }
-      
-      if (askBtn) {
-        askBtn.disabled = true;
-        askBtn.style.pointerEvents = 'none';
-        askBtn.style.opacity = '0.3';
-      }
-      
-      if (clearQABtn) {
-        clearQABtn.disabled = true;
-        clearQABtn.style.pointerEvents = 'none';
-        clearQABtn.style.opacity = '0.3';
-      }
-      
-      // 오버레이가 이미 있으면 추가하지 않음
-      if (!questionSection.querySelector('.question-lock-overlay')) {
-        const overlay = document.createElement('div');
-        overlay.className = 'question-lock-overlay';
-        overlay.innerHTML = `
-          <div class="question-lock-content">
-            <div class="question-lock-header">
-              <span class="material-icons question-lock-icon">help_outline</span>
-              <p class="question-lock-title">${window.languageManager.getMessage('questionFeatureTitle')}</p>
-            </div>
-            <p class="question-lock-description">
-              ${window.languageManager.getMessage('questionFeatureDescription')}
-            </p>
-            <button class="question-upgrade-btn" id="upgradeFromQuestion">
-              <span class="material-icons">workspace_premium</span>
-              <span>${window.languageManager.getMessage('upgradeToPremium')}</span>
-            </button>
-            <p class="question-overlay-hint">${window.languageManager.getMessage('overlayHint')}</p>
-          </div>
-        `;
-        
-        questionSection.appendChild(overlay);
-        
-        // 업그레이드 버튼 이벤트
-        const upgradeBtn = overlay.querySelector('#upgradeFromQuestion');
-        if (upgradeBtn) {
-          upgradeBtn.addEventListener('click', () => {
-            chrome.tabs.create({ 
-              url: 'https://summarygenie.com/premium' 
-            });
-          });
-        }
-      }
-      
-      console.log('[Popup] 🔒 질문 섹션 잠금 (무료 사용자)');
-    }
-  }
-
-  /**
-   * 로그인 필요 안내 화면 표시
-   */
   showLoginRequiredScreen() {
     document.body.innerHTML = `
       <div style="
@@ -373,202 +144,152 @@ class AppController {
 
     document.getElementById('loginBtn').addEventListener('click', () => {
       chrome.tabs.create({
-        url: chrome.runtime.getURL('auth.html')
+        url: chrome.runtime.getURL('auth.html'),
       });
       window.close();
     });
 
     document.getElementById('signupBtn').addEventListener('click', () => {
       chrome.tabs.create({
-        url: chrome.runtime.getURL('auth.html#signup')
+        url: chrome.runtime.getURL('auth.html#signup'),
       });
       window.close();
     });
   }
 
-  /**
-   * Background 없이 직접 토큰 체크
-   */
   async checkAuthStatusDirect() {
     try {
       console.log('[Auth] 직접 storage에서 토큰 확인');
-      
+
       const result = await chrome.storage.local.get('tokens');
-      
+
       if (!result.tokens || !result.tokens.accessToken) {
         console.log('[Auth] 토큰 없음');
         return false;
       }
-      
+
       const token = result.tokens.accessToken;
       const parts = token.split('.');
-      
+
       if (parts.length !== 3) {
         console.warn('[Auth] 잘못된 토큰 형식');
         return false;
       }
-      
+
       try {
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        const payload = JSON.parse(
+          atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))
+        );
         const exp = payload.exp * 1000;
         const now = Date.now();
-        
+
         if (exp <= now) {
           console.warn('[Auth] 토큰 만료됨');
           return false;
         }
-        
-        console.log('[Auth] 토큰 유효함');
+
+        console.log('[Auth] 토큰 유효함 - 서버에서 사용자 정보 조회');
+
+        // ✅ 서버에서 실제 프리미엄 상태 조회 (Firestore)
+        // 📝 프로덕션 배포 시 URL 변경: https://api.summarygenie.com/api/auth/me
+        const API_BASE_URL = 'http://localhost:3000'; // 개발 환경
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+
+            this.currentUser = {
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.name,
+              isPremium: data.user.isPremium, // ✅ Firestore에서 가져온 정확한 값
+            };
+
+            this.isPremium = data.user.isPremium;
+
+            console.log('[Auth] 프리미엄 상태:', this.isPremium);
+            return true;
+          } else {
+            console.warn('[Auth] 사용자 정보 조회 실패:', response.status);
+          }
+        } catch (apiError) {
+          console.error('[Auth] API 호출 오류:', apiError);
+        }
+
+        // 폴백: API 호출 실패 시 토큰에서 기본 정보만 사용
+        console.log('[Auth] 폴백: 토큰에서 기본 정보 사용');
         this.currentUser = {
           id: payload.sub || payload.userId,
           email: payload.email,
-          name: payload.name
+          name: payload.name,
+          isPremium: false, // 안전하게 false로 처리
         };
-        
+
+        this.isPremium = false;
         return true;
-        
       } catch (decodeError) {
         console.error('[Auth] 토큰 디코딩 실패:', decodeError);
         return false;
       }
-      
     } catch (error) {
       console.error('[Auth] 토큰 체크 오류:', error);
       return false;
     }
   }
 
+  // 🚨 [수정됨] 248라인에 있던 불필요한 '}' 제거됨
+
   displayUserInfo() {
     if (!this.currentUser) return;
-    
+
     const userEmailElement = document.getElementById('userEmail');
     if (userEmailElement && this.currentUser.email) {
       userEmailElement.textContent = this.currentUser.email;
     }
-    
+
     const userNameElement = document.getElementById('userName');
     if (userNameElement && this.currentUser.name) {
       userNameElement.textContent = this.currentUser.name;
     }
   }
 
-  setupSettingsChangeListener() {
-    this.settingsUnsubscribe = window.settingsManager.onSettingsChange((newSettings, oldSettings) => {
-      console.log('[Security] 설정 변경 감지');
-      
-      if (newSettings.language !== oldSettings.language) {
-        window.languageManager.changeLanguage(newSettings.language).then(() => {
-          this.updateUITexts();
-          this.updateUsageDisplay();
-          window.languageManager.applyLanguageFont();
-          
-          // ✅ 질문 섹션 오버레이 텍스트 즉시 업데이트
-          this.updateQuestionOverlayText();
-        });
-      }
-      
-      if (newSettings.theme !== oldSettings.theme) {
-        window.settingsManager.applyTheme(newSettings.theme);
-      }
-      
-      if (newSettings.useProxy !== oldSettings.useProxy ||
-          newSettings.apiKey !== oldSettings.apiKey) {
-        this.updateUsageDisplay();
-      }
-    });
-  }
-
-  /**
-   * 실시간 사용량 업데이트 설정
-   * 
-   * 1. Storage 변경 감지 - usageData가 변경되면 즉시 UI 업데이트
-   * 2. Visibility 변경 감지 - popup이 다시 보일 때 서버에서 최신 사용량 조회
-   * 3. Focus 이벤트 - popup에 포커스가 올 때 최신 사용량 조회
-   * 4. 주기적 폴링 - 30초마다 사용량 조회
-   */
-  setupRealtimeUsageUpdate() {
-    console.log('[Usage Update] 실시간 사용량 업데이트 설정');
-    
-    // 1️⃣ Storage 변경 감지 (다른 탭에서 사용량 변경 시)
-    this.storageChangeListener = (changes, areaName) => {
-      if (areaName === 'local' && changes.usageData) {
-        console.log('[Usage Update] Storage에서 사용량 변경 감지:', changes.usageData.newValue);
-        
-        if (changes.usageData.newValue) {
-          const usageData = changes.usageData.newValue;
-          this.usage.daily = usageData.dailyUsed || 0;
-          this.usage.limit = usageData.dailyLimit || 5;
-          
-          this.updateUsageDisplay();
-          console.log('[Usage Update] 사용량 UI 업데이트 완료 (Storage 기반)');
-        }
-      }
-    };
-    chrome.storage.onChanged.addListener(this.storageChangeListener);
-    
-    // 2️⃣ Visibility 변경 감지 (popup이 숨겨졌다가 다시 보일 때)
-    this.visibilityChangeListener = async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[Usage Update] Popup이 다시 보임 - 사용량 조회');
-        await this.checkUsage();
-      }
-    };
-    document.addEventListener('visibilitychange', this.visibilityChangeListener);
-    
-    // 3️⃣ Focus 이벤트 (popup에 포커스가 올 때)
-    this.focusListener = async () => {
-      console.log('[Usage Update] Popup에 포커스 - 사용량 조회');
-      await this.checkUsage();
-    };
-    window.addEventListener('focus', this.focusListener);
-    
-    // 4️⃣ 주기적 폴링 (30초마다 - 선택적)
-    this.usagePollingInterval = setInterval(async () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[Usage Update] 주기적 폴링 - 사용량 조회');
-        await this.checkUsage();
-      }
-    }, 30000); // 30초
-    
-    console.log('[Usage Update] 실시간 업데이트 리스너 등록 완료');
-  }
-
   updateUITexts() {
     const summarizeBtn = document.getElementById('summarizeBtn');
     if (summarizeBtn) {
-      const buttonText = summarizeBtn.querySelector('span[data-i18n="summarizeButton"]');
+      const buttonText = summarizeBtn.querySelector(
+        'span[data-i18n="summarizeButton"]'
+      );
       if (buttonText) {
-        buttonText.textContent = window.languageManager.getMessage('summarizeButton');
+        buttonText.textContent =
+          window.languageManager.getMessage('summarizeButton');
       }
     }
-    
-    this.updateUsageDisplay();
-    
+
     const pageTitle = document.getElementById('pageTitle');
     if (pageTitle) {
       const analyzingMessages = [
         '현재 페이지를 분석 중...',
         'Analyzing current page...',
         '現在のページを分析中...',
-        '正在分析当前页面...'
+        '正在分析当前页面...',
       ];
-      
+
       if (analyzingMessages.includes(pageTitle.textContent)) {
-        pageTitle.textContent = window.languageManager.getMessage('analyzingPage');
+        pageTitle.textContent =
+          window.languageManager.getMessage('analyzingPage');
       }
     }
-    
-    const lengthLabels = document.querySelectorAll('.radio-label span');
-    if (lengthLabels.length >= 3) {
-      lengthLabels[0].textContent = window.languageManager.getMessage('lengthShort');
-      lengthLabels[1].textContent = window.languageManager.getMessage('lengthMedium');
-      lengthLabels[2].textContent = window.languageManager.getMessage('lengthDetailed');
-    }
-    
-    document.querySelectorAll('[data-i18n]').forEach(element => {
+
+    document.querySelectorAll('[data-i18n]').forEach((element) => {
       const key = element.getAttribute('data-i18n');
       const message = window.languageManager.getMessage(key);
-      
+
       if (message && message !== key) {
         if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
           element.placeholder = message;
@@ -577,427 +298,246 @@ class AppController {
         }
       }
     });
-    
-    document.querySelectorAll('[data-i18n-title]').forEach(element => {
+
+    document.querySelectorAll('[data-i18n-title]').forEach((element) => {
       const key = element.getAttribute('data-i18n-title');
       const message = window.languageManager.getMessage(key);
-      
+
       if (message && message !== key) {
         element.title = message;
       }
     });
-    
-    // ✅ 질문 섹션 오버레이 텍스트 즉시 업데이트
-    this.updateQuestionOverlayText();
   }
 
   async loadCurrentTab() {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
       if (!tab || !tab.url) {
         throw new Error(window.languageManager.getMessage('errorExtractContent'));
       }
-      
+
+      // 🆕 PDF 감지
+      const isPDF = window.isPDFUrl ? window.isPDFUrl(tab.url) : false;
+
       this.currentPageInfo = {
         title: tab.title || window.languageManager.getMessage('noTitle'),
         url: tab.url,
-        domain: new URL(tab.url).hostname
+        domain: new URL(tab.url).hostname,
+        isPDF: isPDF,
       };
-      
+
       window.uiManager.displayPageInfo(this.currentPageInfo);
-      
+
+      // 🆕 PDF 처리
+      if (isPDF) {
+        console.log('[Popup] PDF 페이지 감지:', tab.url);
+        this.handlePDFPage();
+        return;
+      }
+
       if (window.isRestrictedPage(tab.url)) {
         window.uiManager.disablePage();
         this.showToast('errorRestrictedPage');
       }
-      
     } catch (error) {
-      console.error('[Security] 탭 정보 로드 오류:', error);
+      console.error('[Popup] 탭 정보 로드 오류:', error);
       window.errorHandler.handle(error, 'load-current-tab');
       this.showError('errorExtractContent');
     }
   }
 
-  async extractPageContent() {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
-      if (window.isRestrictedPage(tab.url)) {
-        throw new Error(window.languageManager.getMessage('errorRestrictedPage'));
-      }
-      
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content.js']
-        });
-        
-        await chrome.scripting.insertCSS({
-          target: { tabId: tab.id },
-          files: ['content-styles.css']
-        });
-        
-        console.log('[Security] Content script 주입 완료');
-      } catch (injectError) {
-        console.log('[Security] Content script 주입 실패:', injectError.message);
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      try {
-        const response = await chrome.tabs.sendMessage(tab.id, {
-          action: 'extractContent'
-        });
-        
-        if (response && response.content) {
-          const contentValidation = window.validateInput(response.content, {
-            type: 'string',
-            required: true,
-            minLength: 50,
-            maxLength: 50000
-          });
-          
-          if (!contentValidation.valid) {
-            throw new Error(`콘텐츠 검증 실패: ${contentValidation.error}`);
-          }
-          
-          this.currentPageContent = contentValidation.sanitized;
-          console.log('[Security] 콘텐츠 추출 및 검증 완료:', this.currentPageContent.length, '문자');
-          return this.currentPageContent;
-        }
-      } catch (messageError) {
-        console.log('[Security] Content script 통신 오류:', messageError.message);
-      }
-      
-      console.log('[Security] 백업 방법으로 콘텐츠 추출 시도');
-      const [result] = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: () => {
-          const unwantedElements = document.querySelectorAll('script, style, noscript, iframe');
-          unwantedElements.forEach(el => el.remove());
-          
-          const contentSelectors = [
-            'article',
-            'main',
-            '[role="main"]',
-            '.content',
-            '#content',
-            '.post-content',
-            '.entry-content'
-          ];
-          
-          for (const selector of contentSelectors) {
-            const element = document.querySelector(selector);
-            if (element && element.innerText.trim().length > 100) {
-              return element.innerText.trim().substring(0, 10000);
-            }
-          }
-          
-          return document.body.innerText.trim().substring(0, 10000);
-        }
-      });
-      
-      if (result && result.result) {
-        const contentValidation = window.validateInput(result.result, {
-          type: 'string',
-          required: true,
-          minLength: 50,
-          maxLength: 50000
-        });
-        
-        if (!contentValidation.valid) {
-          throw new Error(`콘텐츠 검증 실패: ${contentValidation.error}`);
-        }
-        
-        this.currentPageContent = contentValidation.sanitized;
-        console.log('[Security] 백업 방법으로 콘텐츠 추출 및 검증 완료:', this.currentPageContent.length, '문자');
-        return this.currentPageContent;
-      }
-      
-      throw new Error(window.languageManager.getMessage('errorExtractContent'));
-      
-    } catch (error) {
-      console.error('[Security] 콘텐츠 추출 오류:', error);
-      window.errorHandler.handle(error, 'extract-page-content');
-      throw error;
-    }
-  }
-
-  async summarizePage() {
-    try {
-      const canUse = await window.usageManager.canSummarize();
-      
-      if (!canUse.allowed) {
-        if (canUse.reason === 'DAILY_LIMIT_EXCEEDED') {
-          this.showUpgradeModal('summary');
-          return;
-        }
-        throw new Error(window.languageManager.getMessage('errorDailyLimit'));
-      }
-      
-      if (!window.settingsManager.isApiReady()) {
-        this.showToast('errorApiNotConfigured');
-        return;
-      }
-      
-      window.uiManager.showLoading(true);
-      window.uiManager.resetSections();
-      
-      const content = await this.extractPageContent();
-      
-      if (!content || content.length < 100) {
-        throw new Error(window.languageManager.getMessage('errorExtractContent'));
-      }
-      
-      console.log('[Security] 요약 시작 - 콘텐츠 길이:', content.length);
-      
-      const lengthOption = window.settingsManager.getSummaryLength();
-      console.log('[Security] 요약 길이 옵션:', lengthOption);
-      
-      this.currentSummary = await window.apiService.summarizeText(
-        content, 
-        lengthOption,
-        this.currentPageInfo
-      );
-      console.log('[Security] 요약 완료 (길이:', this.currentSummary.length, '문자)');
-      
-      window.uiManager.displaySummary(this.currentSummary);
-      
-      const historyId = await this.saveSummaryHistory();
-      this.currentHistoryId = historyId;
-      
-      await window.qaManager.initialize(historyId, content);
-      
-      // ✅ 질문 섹션 프리미엄 확인 (요약 완료 후 질문 섹션 표시 시)
-      await this.checkPremiumAndToggleQuestion();
-      
-      // ✅ /api/chat에서 이미 사용량을 증가시키므로 여기서는 조회만 수행
-      await this.updateUsage();
-      
-      this.showToast('toastSaved');
-      
-    } catch (error) {
-      console.error('[Security] 요약 오류:', error);
-      window.errorHandler.handle(error, 'summarize-page');
-      this.showError('errorSummarize');
-    } finally {
-      window.uiManager.showLoading(false);
-    }
-  }
-
-  async askQuestion() {
-    const questionInput = window.uiManager.getElement('questionInput');
-    const questionText = questionInput.value.trim();
-    
-    const validation = window.validateInput(questionText, {
-      type: 'string',
-      required: true,
-      minLength: 2,
-      maxLength: 5000,
-      pattern: /^[^<>]*$/
-    });
-    
-    if (!validation.valid) {
-      console.warn('[Security] 질문 검증 실패:', validation.error);
-      this.showToast('enterQuestion');
-      return;
-    }
-    
-    const question = validation.sanitized;
-    
-    const canUse = await window.usageManager.canAskQuestion();
-    
-    if (!canUse.allowed) {
-      if (canUse.reason === 'QUESTION_LIMIT_EXCEEDED') {
-        this.showUpgradeModal('question');
-        return;
-      }
-      throw new Error(window.languageManager.getMessage('errorDailyLimit'));
-    }
-    
-    if (!window.settingsManager.isApiReady()) {
-      this.showToast('errorApiNotConfigured');
-      return;
-    }
-    
-    try {
-      console.log('[Security] 질문 처리 중 - 길이:', question.length);
-      
-      await window.qaManager.processQuestion(question);
-      
-      // ✅ /api/chat에서 이미 사용량을 증가시키므로 여기서는 조회만 수행
-      await this.updateUsage();
-      
-      questionInput.value = '';
-      
-      console.log('[Security] 질문 처리 완료');
-      
-    } catch (error) {
-      console.error('[Security] 질문 처리 오류:', error);
-      window.errorHandler.handle(error, 'ask-question');
-      this.showError(error.message || 'errorAnswer');
-    }
-  }
-
-  copySummary() {
-    if (!this.currentSummary) {
-      this.showToast('nothingToCopy');
-      return;
-    }
-    
-    navigator.clipboard.writeText(this.currentSummary)
-      .then(() => {
-        console.log('[Security] 요약 복사 완료');
-        this.showToast('toastCopied');
-        window.uiManager.animateCopyButton();
-      })
-      .catch(err => {
-        console.error('[Security] 복사 실패:', err);
-        window.errorHandler.handle(err, 'copy-summary');
-        this.showToast('copyFailed');
-      });
-  }
-
-  async saveSummaryHistory() {
-    const settings = window.settingsManager.getSettings();
-    
-    if (!settings.saveHistory) {
-      console.log('[Security] 히스토리 저장 비활성화됨');
-      return null;
-    }
-    
-    try {
-      const historyItem = await window.historyManager.addHistory({
-        title: this.currentPageInfo.title,
-        url: this.currentPageInfo.url,
-        summary: this.currentSummary,
-        qaHistory: [],
-        metadata: {
-          domain: this.currentPageInfo.domain,
-          language: window.languageManager.getCurrentLanguage(),
-          userId: this.currentUser?.id
-        }
-      });
-      
-      await window.storageManager.updateUsageStatistics();
-      
-      console.log('[Security] 히스토리 저장 완료:', historyItem.id.substring(0, 10) + '...');
-      
-      return historyItem.id;
-      
-    } catch (error) {
-      console.error('[Security] 히스토리 저장 오류:', error);
-      window.errorHandler.handle(error, 'save-history');
-      return null;
-    }
-  }
-
-  async checkUsage() {
-    try {
-      console.log('[Usage] getUsageStatus 호출 시작...');
-      const usageStatus = await window.usageManager.getUsageStatus();
-      
-      console.log('[Usage] getUsageStatus 응답:', usageStatus);
-      
-      this.usage.daily = usageStatus.isPremium ? 0 : usageStatus.dailyUsed;
-      this.usage.limit = usageStatus.isPremium ? Infinity : usageStatus.dailyLimit;
-      
-      this.updateUsageDisplay();
-      
-      console.log('[Security] 사용량 조회 완료:', {
-        isPremium: usageStatus.isPremium,
-        used: this.usage.daily,
-        limit: this.usage.limit
-      });
-      
-    } catch (error) {
-      console.error('[Security] 사용량 확인 오류:', error);
-      window.errorHandler.handle(error, 'check-usage');
-      
-      this.usage.daily = 0;
-      this.usage.limit = 5;
-      this.updateUsageDisplay();
-    }
-  }
-
-  async updateUsage() {
-    try {
-      await this.checkUsage();
-      
-    } catch (error) {
-      console.error('[Security] 사용량 업데이트 오류:', error);
-      window.errorHandler.handle(error, 'update-usage');
-    }
-  }
-
-  updateUsageDisplay() {
-    const usageText = document.getElementById('usageText');
-    if (!usageText) {
-      console.warn('[Usage Display] usageText 요소를 찾을 수 없습니다');
-      return;
-    }
-    
-    const isPremium = window.usageManager.isPremium();
-    console.log('[Usage Display] 프리미엄 상태:', isPremium);
-    
-    if (isPremium) {
-      const unlimitedMsg = window.languageManager.getMessage('unlimited') || '무제한';
-      usageText.textContent = `✨ ${unlimitedMsg}`;
-      usageText.style.color = '#4CAF50';
-      console.log('[Usage Display] 프리미엄 사용자 - 표시:', usageText.textContent);
-    } else {
-      const usedCount = this.usage.daily;
-      const totalLimit = this.usage.limit;
-      
-      console.log('[Usage Display] 무료 사용자 - 사용량:', { usedCount, totalLimit });
-      
-      // 언어별로 직접 문자열 구성 (플레이스홀더 치환 문제 해결)
-      const currentLang = window.languageManager.getCurrentLanguage();
-      let message;
-      
-      switch(currentLang) {
-        case 'en':
-          message = `Today: ${usedCount}/${totalLimit}`;
-          break;
-        case 'ja':
-          message = `今日: ${usedCount}/${totalLimit}`;
-          break;
-        case 'zh':
-          message = `今日: ${usedCount}/${totalLimit}`;
-          break;
-        case 'ko':
-        default:
-          message = `오늘 ${usedCount}회/${totalLimit}회`;
-          break;
-      }
-      
-      console.log('[Usage Display] 최종 메시지:', message);
-      
-      usageText.textContent = message;
-      usageText.style.color = '';
-    }
-    
+  /**
+   * ✅ PDF 페이지 처리
+   * 프리미엄 사용자: 정상 진행
+   * 무료 사용자: 업그레이드 안내
+   */
+  handlePDFPage() {
     const summarizeBtn = document.getElementById('summarizeBtn');
-    if (!isPremium && this.usage.daily >= this.usage.limit) {
+
+    if (!this.isPremium) {
+      console.log('[Popup] PDF 요약 차단 - 무료 사용자');
+
+      // 버튼 비활성화 및 프리미엄 안내로 변경
       if (summarizeBtn) {
-        summarizeBtn.disabled = true;
-        const buttonText = summarizeBtn.querySelector('span:last-child');
-        if (buttonText) {
-          buttonText.textContent = window.languageManager.getMessage('dailyLimitExceeded');
+        summarizeBtn.disabled = false; // 클릭은 가능하게
+        const buttonIcon = summarizeBtn.querySelector('.btn-icon');
+        const buttonText = summarizeBtn.querySelector('span[data-i18n]');
+
+        if (buttonIcon) {
+          buttonIcon.innerHTML = `
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            <path d="M9 12l2 2 4-4"/>
+          `;
         }
-        console.log('[Usage Display] 버튼 비활성화 - 사용 한도 초과');
+
+        if (buttonText) {
+          buttonText.textContent = 'PDF 요약 (프리미엄)';
+        }
+      }
+
+      // 안내 메시지 표시
+      const infoMessage = document.querySelector('.info-message');
+      if (infoMessage) {
+        infoMessage.innerHTML = `
+          <span class="material-icons">info</span>
+          <span>PDF 요약은 프리미엄 전용 기능입니다</span>
+        `;
+        infoMessage.style.background =
+          'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        infoMessage.style.color = 'white';
       }
     } else {
+      console.log('[Popup] PDF 요약 허용 - 프리미엄 사용자');
+
+      // 프리미엄 사용자는 일반 페이지와 동일하게 처리
       if (summarizeBtn) {
         summarizeBtn.disabled = false;
-        const buttonText = summarizeBtn.querySelector('span:last-child');
+        const buttonText = summarizeBtn.querySelector('span[data-i18n]');
         if (buttonText) {
-          buttonText.textContent = window.languageManager.getMessage('summarizeButton');
+          buttonText.textContent = 'PDF 요약하기';
         }
-        console.log('[Usage Display] 버튼 활성화');
       }
     }
+  }
+
+  /**
+   * ✅ 요약하기 버튼 클릭 시 사이드 패널 열기
+   */
+  async summarizePage() {
+    try {
+      console.log('[Popup] 요약 버튼 클릭 - Side Panel 열기');
+
+      // 🆕 PDF이고 무료 사용자면 업그레이드 모달 표시
+      if (this.currentPageInfo.isPDF && !this.isPremium) {
+        console.log('[Popup] PDF 요약 차단 - 업그레이드 모달 표시');
+        this.showPDFUpgradeModal();
+        return;
+      }
+
+      // 1. 자동 요약 플래그 설정
+      await chrome.storage.local.set({
+        autoSummarize: true,
+        summaryLength: window.settingsManager.getSummaryLength(),
+      });
+
+      // 2. Side Panel 열기
+      const [tab] = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+
+      if (chrome.sidePanel && chrome.sidePanel.open) {
+        await chrome.sidePanel.open({ windowId: tab.windowId });
+      } else {
+        // 폴백: 새 탭에서 열기
+        chrome.tabs.create({
+          url: chrome.runtime.getURL('sidepanel.html'),
+        });
+      }
+
+      // 3. 팝업 닫기
+      window.close();
+    } catch (error) {
+      console.error('[Popup] Side Panel 열기 오류:', error);
+      window.errorHandler.handle(error, 'open-side-panel-for-summary');
+      this.showError('errorSummarize');
+    }
+  }
+
+  /**
+   * ✅ PDF 업그레이드 모달 표시
+   */
+  showPDFUpgradeModal() {
+    const existingModal = document.getElementById('pdfUpgradeModal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'pdfUpgradeModal';
+    modal.className = 'modal';
+
+    modal.innerHTML = `
+      <div class="modal-content upgrade-modal" style="max-width: 420px;">
+        <div class="modal-header">
+          <h2>PDF 요약 기능</h2>
+          <button class="icon-btn close-modal">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+        <div class="modal-body" style="text-align: center; padding: 32px 24px;">
+          <div class="upgrade-icon" style="margin-bottom: 24px;">
+            <span class="material-icons" style="font-size: 64px; color: #667eea;">picture_as_pdf</span>
+          </div>
+          <h3 style="margin-bottom: 16px; font-size: 20px; color: #212121;">PDF 요약은 프리미엄 전용 기능입니다</h3>
+          <p class="upgrade-description" style="margin-bottom: 24px; color: #757575; line-height: 1.6;">
+            프리미엄으로 업그레이드하면<br>
+            PDF 문서를 무제한으로 요약할 수 있습니다
+          </p>
+          <div class="premium-benefits" style="text-align: left; margin-bottom: 24px; padding: 20px; background: #f5f5f5; border-radius: 12px;">
+            <h4 style="margin-bottom: 12px; font-size: 16px; color: #212121;">✨ 프리미엄 혜택</h4>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+              <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-icons" style="color: #4CAF50; font-size: 20px;">check_circle</span>
+                <span style="color: #616161;">PDF 문서 무제한 요약</span>
+              </li>
+              <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-icons" style="color: #4CAF50; font-size: 20px;">check_circle</span>
+                <span style="color: #616161;">웹페이지 무제한 요약</span>
+              </li>
+              <li style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span class="material-icons" style="color: #4CAF50; font-size: 20px;">check_circle</span>
+                <span style="color: #616161;">무제한 질문 기능</span>
+              </li>
+              <li style="display: flex; align-items: center; gap: 8px;">
+                <span class="material-icons" style="color: #4CAF50; font-size: 20px;">check_circle</span>
+                <span style="color: #616161;">우선 지원</span>
+              </li>
+            </ul>
+          </div>
+          <div class="upgrade-price" style="margin-bottom: 24px;">
+            <span class="price" style="font-size: 32px; font-weight: 700; color: #2196F3;">$4.99</span>
+            <span class="period" style="color: #757575;">/ 월</span>
+          </div>
+        </div>
+        <div class="modal-footer" style="display: flex; gap: 12px; padding: 16px 24px;">
+          <button class="secondary-btn close-modal" style="flex: 1; padding: 12px; border: 1px solid #e0e0e0; background: white; border-radius: 8px; cursor: pointer; font-weight: 500; color: #616161;">
+            나중에
+          </button>
+          <button class="primary-btn upgrade-btn" style="flex: 1; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span class="material-icons" style="font-size: 20px;">workspace_premium</span>
+            업그레이드
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeButtons = modal.querySelectorAll('.close-modal');
+    closeButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        modal.remove();
+      });
+    });
+
+    const upgradeBtn = modal.querySelector('.upgrade-btn');
+    upgradeBtn.addEventListener('click', () => {
+      chrome.tabs.create({
+        url: 'https://summarygenie.com/premium',
+      });
+      modal.remove();
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+      }
+    });
   }
 
   showToast(messageKey) {
@@ -1018,199 +558,157 @@ class AppController {
     }
   }
 
-  showUpgradeModal(type) {
-    const existingModal = document.getElementById('upgradeModal');
-    if (existingModal) {
-      existingModal.remove();
+  async checkUsage() {
+    try {
+      // usageManager가 로드되지 않았을 경우 방어 코드
+      if (!window.usageManager) {
+        console.warn(
+          '[Popup] usageManager가 아직 로드되지 않았습니다. 기본값 사용'
+        );
+        this.usage.daily = 0;
+        this.usage.limit = 5;
+        this.updateUsageDisplay();
+        return;
+      }
+
+      console.log('[Popup] 사용량 조회 시작...');
+      const usageStatus = await window.usageManager.getUsageStatus();
+
+      console.log('[Popup] 사용량 조회 응답:', usageStatus);
+
+      this.usage.daily = usageStatus.isPremium ? 0 : usageStatus.dailyUsed;
+      this.usage.limit = usageStatus.isPremium ? Infinity : usageStatus.dailyLimit;
+
+      this.updateUsageDisplay();
+
+      console.log('[Popup] 사용량 조회 완료:', {
+        isPremium: usageStatus.isPremium,
+        used: this.usage.daily,
+        limit: this.usage.limit,
+      });
+    } catch (error) {
+      console.error('[Popup] 사용량 확인 오류:', error);
+      window.errorHandler.handle(error, 'check-usage');
+
+      this.usage.daily = 0;
+      this.usage.limit = 5;
+      this.updateUsageDisplay();
+    }
+  }
+
+  updateUsageDisplay() {
+    const usageText = document.getElementById('usageText');
+    if (!usageText) {
+      console.warn('[Popup] usageText 요소를 찾을 수 없습니다');
+      return;
     }
 
-    const modal = document.createElement('div');
-    modal.id = 'upgradeModal';
-    modal.className = 'modal';
-    
-    const typeText = type === 'summary' 
-      ? window.languageManager.getMessage('summaryFeature') || '요약' 
-      : window.languageManager.getMessage('questionFeature') || '질문';
-    
-    const remaining = window.usageManager.getRemainingCount(
-      type === 'summary' ? window.USAGE_TYPE.SUMMARY : window.USAGE_TYPE.QUESTION
-    );
-    
-    const resetTime = window.usageManager.getResetTime();
-    const resetDate = resetTime ? new Date(resetTime) : new Date();
-    const resetTimeText = resetDate.toLocaleTimeString(window.languageManager.getCurrentLanguage(), {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // usageManager가 아직 로드되지 않았을 경우 방어 코드
+    if (!window.usageManager) {
+      console.warn('[Popup] usageManager가 아직 로드되지 않았습니다');
+      usageText.textContent = '로딩 중...';
+      return;
+    }
 
-    modal.innerHTML = `
-      <div class="modal-content upgrade-modal">
-        <div class="modal-header">
-          <h2>${window.languageManager.getMessage('upgradeToPremium') || '프리미엄 업그레이드'}</h2>
-          <button class="icon-btn close-modal">
-            <span class="material-icons">close</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="upgrade-icon">
-            <span class="material-icons">lock</span>
-          </div>
-          <h3>${window.languageManager.getMessage('dailyLimitReached') || '오늘의 무료 사용량을 모두 소진했습니다'}</h3>
-          <p class="upgrade-description">
-            ${typeText} 기능을 계속 사용하려면 프리미엄으로 업그레이드하세요.
-          </p>
-          <div class="usage-info">
-            <div class="info-row">
-              <span class="info-label">${window.languageManager.getMessage('remainingToday') || '오늘 남은 횟수'}:</span>
-              <span class="info-value">${remaining}회</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">${window.languageManager.getMessage('resetTime') || '초기화 시간'}:</span>
-              <span class="info-value">${resetTimeText}</span>
-            </div>
-          </div>
-          <div class="premium-benefits">
-            <h4>✨ ${window.languageManager.getMessage('premiumBenefits') || '프리미엄 혜택'}</h4>
-            <ul>
-              <li>
-                <span class="material-icons">check_circle</span>
-                ${window.languageManager.getMessage('unlimitedSummaries') || '무제한 요약'}
-              </li>
-              <li>
-                <span class="material-icons">check_circle</span>
-                ${window.languageManager.getMessage('unlimitedQuestions') || '무제한 질문'}
-              </li>
-              <li>
-                <span class="material-icons">check_circle</span>
-                ${window.languageManager.getMessage('prioritySupport') || '우선 지원'}
-              </li>
-              <li>
-                <span class="material-icons">check_circle</span>
-                ${window.languageManager.getMessage('advancedFeatures') || '고급 기능'}
-              </li>
-            </ul>
-          </div>
-          <div class="upgrade-price">
-            <span class="price">$4.99</span>
-            <span class="period">/ ${window.languageManager.getMessage('month') || '월'}</span>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="secondary-btn close-modal">
-            ${window.languageManager.getMessage('maybeLater') || '나중에'}
-          </button>
-          <button class="primary-btn upgrade-btn">
-            <span class="material-icons">workspace_premium</span>
-            ${window.languageManager.getMessage('upgradeToPremium') || '프리미엄 업그레이드'}
-          </button>
-        </div>
-      </div>
-    `;
+    const isPremium = window.usageManager.isPremium();
+    console.log('[Popup] 프리미엄 상태:', isPremium);
 
-    document.body.appendChild(modal);
+    if (isPremium) {
+      const unlimitedMsg =
+        window.languageManager.getMessage('unlimited') || '무제한';
+      usageText.textContent = `✨ ${unlimitedMsg}`;
+      usageText.style.color = '#4CAF50';
+      console.log('[Popup] 프리미엄 사용자 - 표시:', usageText.textContent);
+    } else {
+      const usedCount = this.usage.daily;
+      const totalLimit = this.usage.limit;
 
-    const closeButtons = modal.querySelectorAll('.close-modal');
-    closeButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        modal.remove();
-      });
-    });
+      console.log('[Popup] 무료 사용자 - 사용량:', { usedCount, totalLimit });
 
-    const upgradeBtn = modal.querySelector('.upgrade-btn');
-    upgradeBtn.addEventListener('click', () => {
-      chrome.tabs.create({ 
-        url: 'https://summarygenie.com/premium' 
-      });
-      modal.remove();
-    });
+      const currentLang = window.languageManager.getCurrentLanguage();
+      let message;
 
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        modal.remove();
+      switch (currentLang) {
+        case 'en':
+          message = `Today: ${usedCount}/${totalLimit}`;
+          break;
+        case 'ja':
+          message = `今日: ${usedCount}/${totalLimit}`;
+          break;
+        case 'zh':
+          message = `今日: ${usedCount}/${totalLimit}`;
+          break;
+        case 'ko':
+        default:
+          message = `오늘 ${usedCount}회/${totalLimit}회`;
+          break;
       }
-    });
+
+      console.log('[Popup] 최종 메시지:', message);
+
+      usageText.textContent = message;
+      usageText.style.color = '';
+    }
+
+    const summarizeBtn = document.getElementById('summarizeBtn');
+    if (!isPremium && this.usage.daily >= this.usage.limit) {
+      if (summarizeBtn) {
+        summarizeBtn.disabled = true;
+        const buttonText = summarizeBtn.querySelector(
+          'span[data-i18n="summarizeButton"]'
+        );
+        if (buttonText) {
+          buttonText.textContent =
+            window.languageManager.getMessage('dailyLimitExceeded');
+        }
+        console.log('[Popup] 버튼 비활성화 - 사용 한도 초과');
+      }
+    } else {
+      if (summarizeBtn) {
+        summarizeBtn.disabled = false;
+        const buttonText = summarizeBtn.querySelector(
+          'span[data-i18n="summarizeButton"]'
+        );
+        if (buttonText) {
+          buttonText.textContent =
+            window.languageManager.getMessage('summarizeButton');
+        }
+        console.log('[Popup] 버튼 활성화');
+      }
+    }
   }
 
   setupEventListeners() {
     const elements = window.uiManager.elements;
-    
+
+    // ✅ 요약 버튼: Side Panel 열기
     if (elements.summarizeBtn) {
       elements.summarizeBtn.addEventListener('click', () => this.summarizePage());
     }
-    
-    if (elements.copyBtn) {
-      elements.copyBtn.addEventListener('click', () => this.copySummary());
-    }
-    
-    if (elements.askBtn) {
-      elements.askBtn.addEventListener('click', () => this.askQuestion());
-    }
-    
-    if (elements.clearQABtn) {
-      elements.clearQABtn.addEventListener('click', () => {
-        window.qaManager.clearCurrentSession(true);
-      });
-    }
-    
+
     if (elements.settingsBtn) {
       elements.settingsBtn.addEventListener('click', () => {
         chrome.runtime.openOptionsPage();
       });
     }
-    
+
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => this.logout());
-    }
-    
-    if (elements.questionInput) {
-      elements.questionInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          this.askQuestion();
-        }
-      });
-    }
-    
-    // 요약 길이 버튼 이벤트 리스너 (새로운 스타일)
-    const lengthButtons = document.querySelectorAll('.length-btn-modern');
-    lengthButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
-        // 모든 버튼에서 active 클래스 제거
-        lengthButtons.forEach(btn => btn.classList.remove('active'));
-        // 클릭된 버튼에 active 클래스 추가
-        button.classList.add('active');
-        
-        // 해당 라디오 버튼 체크
-        const lengthValue = button.getAttribute('data-length');
-        const radioInput = button.querySelector('input[type="radio"]');
-        if (radioInput) {
-          radioInput.checked = true;
-        }
-        
-        console.log('[Security] 요약 길이 선택:', lengthValue);
-      });
-    });
-    
-    // 초기 활성 버튼 설정
-    const mediumBtn = document.querySelector('.length-btn-modern[data-length="medium"]');
-    if (mediumBtn) {
-      mediumBtn.classList.add('active');
     }
   }
 
   async logout() {
     try {
       console.log('[Auth] 로그아웃 시작');
-      
+
       await chrome.storage.local.remove('tokens');
-      
+
       chrome.tabs.create({
-        url: chrome.runtime.getURL('auth.html')
+        url: chrome.runtime.getURL('auth.html'),
       });
-      
+
       window.close();
-      
     } catch (error) {
       console.error('[Auth] 로그아웃 오류:', error);
       window.errorHandler.handle(error, 'logout');
@@ -1219,39 +717,8 @@ class AppController {
   }
 
   cleanup() {
-    // 설정 변경 리스너 제거
-    if (this.settingsUnsubscribe) {
-      this.settingsUnsubscribe();
-      this.settingsUnsubscribe = null;
-    }
-    
-    // 실시간 사용량 업데이트 리스너 제거
-    if (this.storageChangeListener) {
-      chrome.storage.onChanged.removeListener(this.storageChangeListener);
-      this.storageChangeListener = null;
-      console.log('[Usage Update] Storage 리스너 제거');
-    }
-    
-    if (this.visibilityChangeListener) {
-      document.removeEventListener('visibilitychange', this.visibilityChangeListener);
-      this.visibilityChangeListener = null;
-      console.log('[Usage Update] Visibility 리스너 제거');
-    }
-    
-    if (this.focusListener) {
-      window.removeEventListener('focus', this.focusListener);
-      this.focusListener = null;
-      console.log('[Usage Update] Focus 리스너 제거');
-    }
-    
-    if (this.usagePollingInterval) {
-      clearInterval(this.usagePollingInterval);
-      this.usagePollingInterval = null;
-      console.log('[Usage Update] 폴링 인터벌 제거');
-    }
-    
     this.initialized = false;
-    console.log('[Security] Popup cleanup 완료');
+    console.log('[Popup] cleanup 완료');
   }
 }
 
@@ -1260,8 +727,8 @@ const app = new AppController();
 
 // DOM 로드 완료 후 초기화
 document.addEventListener('DOMContentLoaded', () => {
-  app.initialize().catch(error => {
-    console.error('[Security] 앱 초기화 실패:', error);
+  app.initialize().catch((error) => {
+    console.error('[Popup] 앱 초기화 실패:', error);
     window.errorHandler.handle(error, 'app-initialization');
   });
 });

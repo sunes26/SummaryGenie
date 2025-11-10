@@ -697,5 +697,18 @@
 },
 "manageSubscription": {
   "message": "Manage Subscription"
+},
+"summarizePagePrompt": {
+  "message": "Please summarize the following webpage content:"
+},
+"webpageContext": {
+  "message": "Webpage content:"
+},
+"previousConversation": {
+  "message": "Previous conversation:"
+},
+"questionPrompt": {
+  "message": "Question:"
 }
+
 }

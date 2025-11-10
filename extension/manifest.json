@@ -1,10 +1,9 @@
 ﻿{
   "manifest_version": 3,
   "name": "SummaryGenie - AI Web Page Summarizer",
-  "version": "2.0.1",
-  "description": "AI가 웹페이지를 즉시 요약해주는 스마트한 읽기 도우미",
+  "version": "2.3.1",
+  "description": "AI가 웹페이지와 PDF를 즉시 요약해주는 스마트한 읽기 도우미 (프리미엄 기능)",
   "default_locale": "ko",
-  
   "permissions": [
     "activeTab",
     "storage",
@@ -12,14 +11,14 @@
     "contextMenus",
     "notifications",
     "alarms",
-    "tabs"
+    "tabs",
+    "sidePanel",
+    "offscreen"
   ],
-  
   "host_permissions": [
     "https://*/*",
     "http://localhost:3000/*"
   ],
-  
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -29,29 +28,33 @@
     },
     "default_title": "SummaryGenie - 페이지 요약"
   },
-  
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  
   "background": {
     "service_worker": "background.js"
   },
-  
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
-      "css": ["content-styles.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content-styles.css"
+      ],
       "run_at": "document_idle",
       "all_frames": false
     }
   ],
-  
   "options_page": "options.html",
-  
   "web_accessible_resources": [
     {
       "resources": [
@@ -61,34 +64,47 @@
         "auth.html",
         "auth.css",
         "auth.js",
+        "firebase-app.js",
+        "firebase-auth.js",
         "popup.html",
         "popup.css",
+        "sidepanel.html",
+        "sidepanel.css",
+        "sidepanel.js",
         "options.html",
         "options.css",
-        "_locales/*/messages.json"
+        "_locales/*/messages.json",
+        "pdf-extractor.js",
+        "lib/pdf.mjs",
+        "lib/pdf.worker.mjs",
+        "lib/pdf.sandbox.mjs",
+        "lib/*.map",
+        "lib/cmaps/*",
+        "pdf-offscreen.html",
+        "pdf-offscreen-main.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
-  
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests; block-all-mixed-content;"
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
   },
-  
   "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+G",
+        "mac": "Command+Shift+G"
+      },
+      "description": "SummaryGenie Side Panel 열기"
+    },
     "summarize-page": {
       "suggested_key": {
         "default": "Alt+S",
         "mac": "Command+Shift+S"
       },
       "description": "현재 페이지 요약"
-    },
-    "open-popup": {
-      "suggested_key": {
-        "default": "Alt+G",
-        "mac": "Command+Shift+G"
-      },
-      "description": "SummaryGenie 열기"
     },
     "open-history": {
       "suggested_key": {
@@ -98,16 +114,13 @@
       "description": "히스토리 열기"
     }
   },
-  
-  "minimum_chrome_version": "88",
-  
+  "minimum_chrome_version": "114",
   "externally_connectable": {
     "matches": [
       "https://api.summarygenie.com/*",
       "https://summarygenie.com/*"
     ]
   },
-  
   "author": "SummaryGenie Team",
   "homepage_url": "https://summarygenie.com"
 }

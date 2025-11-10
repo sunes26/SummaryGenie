@@ -1,4 +1,5 @@
 /**
+ * extension\modules\history-manager.js
  * SummaryGenie History Manager (Cloud Sync 통합)
  * 로컬 + 클라우드 하이브리드 히스토리 관리
  * 

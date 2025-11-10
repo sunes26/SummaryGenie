@@ -1,4 +1,5 @@
 /**
+ * extension\modules\security.js
  * SummaryGenie Security Module (단순화 버전)
  * 필수 보안 유틸리티 함수만 제공합니다.
  * 

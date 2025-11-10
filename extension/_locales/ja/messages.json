@@ -47,6 +47,51 @@
   "apiSettings": {
     "message": "API設定"
   },
+  "apiMode": {
+    "message": "API接続方式"
+  },
+  "proxyServer": {
+    "message": "プロキシサーバー（推奨）"
+  },
+  "directConnection": {
+    "message": "直接接続（開発用）"
+  },
+  "proxyServerHelp": {
+    "message": "プロキシサーバーを使用するとAPIキーを安全に保護できます。"
+  },
+  "proxyUrl": {
+    "message": "プロキシサーバーURL"
+  },
+  "proxyUrlHelp": {
+    "message": "バックエンドプロキシサーバーのアドレスを入力してください。"
+  },
+  "apiKey": {
+    "message": "OpenAI APIキー"
+  },
+  "showHide": {
+    "message": "表示/非表示"
+  },
+  "apiKeyWarning": {
+    "message": "⚠️ 直接接続はセキュリティ上推奨されません。開発とテスト目的でのみ使用してください。"
+  },
+  "usageStatistics": {
+    "message": "使用量統計"
+  },
+  "todayUsage": {
+    "message": "今日の使用"
+  },
+  "weeklyUsage": {
+    "message": "今週"
+  },
+  "monthlyUsage": {
+    "message": "今月"
+  },
+  "totalUsage": {
+    "message": "全体使用"
+  },
+  "recentUsageChart": {
+    "message": "最近7日間の使用量"
+  },
   "historyManagement": {
     "message": "履歴管理"
   },
@@ -61,6 +106,104 @@
   },
   "deleteHistory": {
     "message": "履歴を削除"
+  },
+  "cloudSync": {
+    "message": "クラウド同期"
+  },
+  "syncStatus": {
+    "message": "同期状態"
+  },
+  "lastSync": {
+    "message": "最終同期"
+  },
+  "pendingItems": {
+    "message": "保留中の項目"
+  },
+  "syncToCloud": {
+    "message": "クラウドへ同期"
+  },
+  "manualSync": {
+    "message": "手動同期"
+  },
+  "online": {
+    "message": "オンライン"
+  },
+  "offline": {
+    "message": "オフライン"
+  },
+  "neverSynced": {
+    "message": "同期されていません"
+  },
+  "syncing": {
+    "message": "同期中..."
+  },
+  "synced": {
+    "message": "同期済み"
+  },
+  "pendingSyncItems": {
+    "message": "$1個の同期待ち",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "syncCompleted": {
+    "message": "$1個の項目を同期完了",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "syncFailed": {
+    "message": "同期失敗"
+  },
+  "confirmCloudSync": {
+    "message": "ローカル履歴をクラウドへアップロードしますか？その後、すべてのデバイスで履歴を使用できます。"
+  },
+  "upload": {
+    "message": "アップロード"
+  },
+  "cloudSyncSuccess": {
+    "message": "同期完了！合計$1個（アップロード：$2、ダウンロード：$3）",
+    "placeholders": {
+      "total": {
+        "content": "$1",
+        "example": "20"
+      },
+      "uploaded": {
+        "content": "$2",
+        "example": "10"
+      },
+      "downloaded": {
+        "content": "$3",
+        "example": "10"
+      }
+    }
+  },
+  "cloudSyncFailed": {
+    "message": "クラウド同期失敗"
+  },
+  "noItemsToSync": {
+    "message": "同期する項目がありません"
+  },
+  "keyboardShortcuts": {
+    "message": "キーボードショートカット"
+  },
+  "summarizePage": {
+    "message": "現在のページを要約"
+  },
+  "focusQuestion": {
+    "message": "質問入力欄にフォーカス"
+  },
+  "openHistory": {
+    "message": "履歴を開く"
+  },
+  "closePopup": {
+    "message": "ポップアップを閉じる"
   },
   "information": {
     "message": "情報"
@@ -315,6 +458,54 @@
   "errorCriticalTitle": {
     "message": "エラー発生"
   },
+  "errorLoadHistory": {
+    "message": "履歴を読み込めません"
+  },
+  "errorSaveHistory": {
+    "message": "履歴を保存できません"
+  },
+  "errorAddHistory": {
+    "message": "履歴を追加できません"
+  },
+  "errorExportHistory": {
+    "message": "履歴をエクスポートできません"
+  },
+  "advancedSettings": {
+    "message": "詳細設定"
+  },
+  "autoSummarize": {
+    "message": "ページ読み込み時に自動要約"
+  },
+  "saveHistory": {
+    "message": "要約履歴を保存"
+  },
+  "historyLimit": {
+    "message": "履歴制限"
+  },
+  "enableContextMenu": {
+    "message": "コンテキストメニューを有効化"
+  },
+  "errorNetwork": {
+    "message": "ネットワークエラーが発生しました"
+  },
+  "errorApiKey": {
+    "message": "APIキーが設定されていません"
+  },
+  "errorStorageQuota": {
+    "message": "ストレージ容量が不足しています"
+  },
+  "errorValidation": {
+    "message": "入力値が無効です"
+  },
+  "errorTimeout": {
+    "message": "リクエストがタイムアウトしました"
+  },
+  "errorPermission": {
+    "message": "権限が必要です"
+  },
+  "errorCritical": {
+    "message": "重大なエラーが発生しました"
+  },
   "upgradeToPremium": {
     "message": "プレミアムにアップグレード"
   },
@@ -392,27 +583,6 @@
   },
   "addquestions": {
     "message": "質問機能の追加"
-  },
-  "historyFeatureTitle": {
-    "message": "履歴機能"
-  },
-  "historyFeatureDescription": {
-    "message": "要約履歴を保存して<br>いつでも確認できます！"
-  },
-  "overlayHint": {
-    "message": "💡 無料プランでは使用できません"
-  },
-  "loadingHistory": {
-    "message": "履歴を読み込み中..."
-  },
-  "historySynced": {
-    "message": "$1件の履歴をサーバーから取得しました",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "10"
-      }
-    }
   },
   "login": {
     "message": "ログイン"
@@ -495,16 +665,50 @@
   "language": {
     "message": "言語"
   },
+  "historyFeatureTitle": {
+    "message": "履歴機能"
+  },
+  "historyFeatureDescription": {
+    "message": "要約履歴を保存して<br>いつでも確認できます！"
+  },
+  "overlayHint": {
+    "message": "💡 無料プランでは使用できません"
+  },
+  "loadingHistory": {
+    "message": "履歴を読み込み中..."
+  },
+  "historySynced": {
+    "message": "$1件の履歴をサーバーから取得しました",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
   "questionFeatureTitle": {
-  "message": "質問機能"
+    "message": "質問機能"
+  },
+  "questionFeatureDescription": {
+    "message": "追加の質問をして<br>より深く理解しましょう！"
+  },
+  "proPlanDescription": {
+    "message": "プレミアムプランをご利用中です。"
+  },
+  "manageSubscription": {
+    "message": "サブスクリプション管理"
+  },
+  "summarizePagePrompt": {
+  "message": "次のウェブページ内容を要約してください:"
 },
-"questionFeatureDescription": {
-  "message": "追加の質問をして<br>より深く理解しましょう！"
+"webpageContext": {
+  "message": "ウェブページ内容:"
 },
-"proPlanDescription": {
-  "message": "プレミアムプランをご利用中です。"
+"previousConversation": {
+  "message": "以前の会話:"
 },
-"manageSubscription": {
-  "message": "サブスクリプション管理"
+"questionPrompt": {
+  "message": "質問:"
 }
+
 }

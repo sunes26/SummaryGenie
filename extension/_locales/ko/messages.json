@@ -697,5 +697,18 @@
 },
 "manageSubscription": {
   "message": "구독 관리"
+},
+"summarizePagePrompt": {
+  "message": "다음 웹페이지 내용을 요약하세요:"
+},
+"webpageContext": {
+  "message": "웹페이지 내용:"
+},
+"previousConversation": {
+  "message": "이전 대화:"
+},
+"questionPrompt": {
+  "message": "질문:"
 }
+
 }

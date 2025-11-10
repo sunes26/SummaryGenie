@@ -1,14 +1,12 @@
 /**
- * JWT 인증 미들웨어
+ * Firebase ID Token 인증 미들웨어
  * Express.js 라우트에서 사용자 인증 및 권한 검증
+ * 
+ * @module middleware/auth
+ * @version 3.0.0 - Firebase Authentication 전환
  */
 
-const { 
-  verifyToken, 
-  TokenExpiredError, 
-  InvalidTokenError, 
-  NoTokenError 
-} = require('../utils/jwt');
+const authService = require('../services/AuthService');
 
 // ===== 토큰 추출 헬퍼 함수 =====
 
@@ -16,9 +14,6 @@ const {
  * Authorization 헤더에서 Bearer 토큰 추출
  * @param {Object} req - Express request 객체
  * @returns {string|null} 추출된 토큰 또는 null
- * @example
- * // Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- * const token = extractToken(req); // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
  */
 function extractToken(req) {
   // Authorization 헤더 확인
@@ -59,26 +54,26 @@ function sendAuthError(res, statusCode, message, code) {
   });
 }
 
-// ===== 1. 필수 인증 미들웨어 =====
+// ===== 1. 필수 인증 미들웨어 (Firebase ID Token) =====
 
 /**
- * 필수 JWT 인증 미들웨어
- * Authorization 헤더에 유효한 JWT 토큰이 있어야 통과
- * 검증 성공시 req.user에 디코딩된 페이로드 저장
+ * 필수 Firebase ID Token 인증 미들웨어
+ * Authorization 헤더에 유효한 Firebase ID 토큰이 있어야 통과
+ * 검증 성공시 req.user에 사용자 정보 저장
  * 
  * @param {Object} req - Express request 객체
  * @param {Object} res - Express response 객체
  * @param {Function} next - Express next 함수
  * 
  * @throws {401} 토큰이 없거나 유효하지 않을 경우
+ * @throws {403} 이메일 인증이 안 된 경우
  * 
  * @example
- * // 보호된 라우트에 적용
  * app.get('/api/profile', authenticate, (req, res) => {
  *   res.json({ user: req.user });
  * });
  */
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   try {
     // 1. 토큰 추출
     const token = extractToken(req);
@@ -92,34 +87,40 @@ function authenticate(req, res, next) {
       );
     }
     
-    // 2. 토큰 검증
-    const decoded = verifyToken(token);
+    // 2. Firebase ID Token 검증
+    const decodedToken = await authService.verifyIdToken(token);
     
-    // 3. 사용자 정보 저장
-    req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      isPremium: decoded.isPremium || false,
-      role: decoded.role || 'user',
-      iat: decoded.iat,
-      exp: decoded.exp
-    };
+    // 3. Firestore에서 사용자 추가 정보 조회
+    const userData = await authService.getUserById(decodedToken.uid);
     
-    // 4. 다음 미들웨어로 진행
-    next();
-    
-  } catch (error) {
-    // 에러 타입별 처리
-    if (error instanceof NoTokenError) {
+    // 4. 이메일 인증 필수 체크
+    if (!decodedToken.email_verified) {
       return sendAuthError(
         res, 
-        401, 
-        '인증 토큰이 제공되지 않았습니다', 
-        'TOKEN_MISSING'
+        403, 
+        '이메일 인증이 필요합니다. 이메일을 확인해주세요', 
+        'EMAIL_NOT_VERIFIED'
       );
     }
     
-    if (error instanceof TokenExpiredError) {
+    // 5. 사용자 정보 저장
+    req.user = {
+      userId: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: decodedToken.email_verified,
+      isPremium: userData.isPremium || false,
+      role: userData.role || 'user',
+      name: userData.name || null
+    };
+    
+    // 6. 다음 미들웨어로 진행
+    next();
+    
+  } catch (error) {
+    console.error('인증 에러:', error);
+    
+    // Firebase 특정 에러 처리
+    if (error.code === 'auth/id-token-expired') {
       return sendAuthError(
         res, 
         401, 
@@ -128,17 +129,25 @@ function authenticate(req, res, next) {
       );
     }
     
-    if (error instanceof InvalidTokenError) {
+    if (error.code === 'auth/id-token-revoked') {
       return sendAuthError(
         res, 
         401, 
-        '유효하지 않은 토큰입니다', 
+        '토큰이 취소되었습니다. 다시 로그인해주세요', 
+        'TOKEN_REVOKED'
+      );
+    }
+    
+    if (error.code === 'auth/argument-error') {
+      return sendAuthError(
+        res, 
+        401, 
+        '유효하지 않은 토큰 형식입니다', 
         'TOKEN_INVALID'
       );
     }
     
     // 기타 에러
-    console.error('인증 에러:', error);
     return sendAuthError(
       res, 
       401, 
@@ -151,7 +160,7 @@ function authenticate(req, res, next) {
 // ===== 2. 선택적 인증 미들웨어 =====
 
 /**
- * 선택적 JWT 인증 미들웨어
+ * 선택적 Firebase ID Token 인증 미들웨어
  * 토큰이 있으면 검증하고, 없어도 통과
  * 유효한 토큰이 있을 경우에만 req.user 설정
  * 
@@ -160,7 +169,6 @@ function authenticate(req, res, next) {
  * @param {Function} next - Express next 함수
  * 
  * @example
- * // 공개 API이지만 로그인 사용자에게는 추가 정보 제공
  * app.get('/api/articles', optionalAuth, (req, res) => {
  *   if (req.user) {
  *     // 로그인 사용자용 응답
@@ -169,7 +177,7 @@ function authenticate(req, res, next) {
  *   }
  * });
  */
-function optionalAuth(req, res, next) {
+async function optionalAuth(req, res, next) {
   try {
     // 1. 토큰 추출
     const token = extractToken(req);
@@ -179,24 +187,27 @@ function optionalAuth(req, res, next) {
       return next();
     }
     
-    // 3. 토큰 검증
-    const decoded = verifyToken(token);
+    // 3. Firebase ID Token 검증
+    const decodedToken = await authService.verifyIdToken(token);
     
-    // 4. 사용자 정보 저장
+    // 4. Firestore에서 추가 정보 조회
+    const userData = await authService.getUserById(decodedToken.uid);
+    
+    // 5. 사용자 정보 저장
     req.user = {
-      userId: decoded.userId,
-      email: decoded.email,
-      isPremium: decoded.isPremium || false,
-      role: decoded.role || 'user',
-      iat: decoded.iat,
-      exp: decoded.exp
+      userId: decodedToken.uid,
+      email: decodedToken.email,
+      emailVerified: decodedToken.email_verified,
+      isPremium: userData.isPremium || false,
+      role: userData.role || 'user',
+      name: userData.name || null
     };
     
     next();
     
   } catch (error) {
     // 토큰이 있지만 유효하지 않은 경우
-    if (error instanceof TokenExpiredError) {
+    if (error.code === 'auth/id-token-expired') {
       return sendAuthError(
         res, 
         401, 
@@ -205,7 +216,7 @@ function optionalAuth(req, res, next) {
       );
     }
     
-    if (error instanceof InvalidTokenError) {
+    if (error.code === 'auth/argument-error') {
       return sendAuthError(
         res, 
         401, 
@@ -235,7 +246,6 @@ function optionalAuth(req, res, next) {
  * @throws {403} 프리미엄 사용자가 아닌 경우
  * 
  * @example
- * // 프리미엄 전용 기능
  * app.post('/api/pdf-summary', authenticate, requirePremium, (req, res) => {
  *   // 프리미엄 사용자만 접근 가능
  * });
@@ -273,14 +283,8 @@ function requirePremium(req, res, next) {
  * @returns {Function} Express 미들웨어 함수
  * 
  * @example
- * // 관리자 전용 라우트
  * app.delete('/api/users/:id', authenticate, requireRole('admin'), (req, res) => {
  *   // admin 역할을 가진 사용자만 접근 가능
- * });
- * 
- * // 여러 역할 허용
- * app.post('/api/posts', authenticate, requireRole('admin', 'moderator'), (req, res) => {
- *   // admin 또는 moderator만 접근 가능
  * });
  */
 function requireRole(...allowedRoles) {
@@ -312,7 +316,44 @@ function requireRole(...allowedRoles) {
   };
 }
 
-// ===== 5. API 키 검증 미들웨어 (기업용) =====
+// ===== 5. 이메일 인증 확인 미들웨어 =====
+
+/**
+ * 이메일 인증 필수 미들웨어
+ * authenticate 이후에 사용
+ * 
+ * @param {Object} req - Express request 객체
+ * @param {Object} res - Express response 객체
+ * @param {Function} next - Express next 함수
+ * 
+ * @example
+ * app.post('/api/premium-feature', authenticate, requireEmailVerified, (req, res) => {
+ *   // 이메일 인증된 사용자만 접근
+ * });
+ */
+function requireEmailVerified(req, res, next) {
+  if (!req.user) {
+    return sendAuthError(
+      res, 
+      401, 
+      '인증이 필요합니다', 
+      'AUTH_REQUIRED'
+    );
+  }
+  
+  if (!req.user.emailVerified) {
+    return sendAuthError(
+      res, 
+      403, 
+      '이메일 인증이 필요합니다', 
+      'EMAIL_NOT_VERIFIED'
+    );
+  }
+  
+  next();
+}
+
+// ===== 6. API 키 검증 미들웨어 (기업용) =====
 
 /**
  * API 키 검증 미들웨어
@@ -340,8 +381,7 @@ function validateApiKey(req, res, next) {
       );
     }
     
-    // TODO: 실제 API 키 검증 로직 (데이터베이스 조회)
-    // 현재는 환경변수와 비교하는 예시
+    // TODO: 실제 API 키 검증 로직 (Firestore 조회)
     const validApiKeys = process.env.VALID_API_KEYS?.split(',') || [];
     
     if (!validApiKeys.includes(apiKey)) {
@@ -369,7 +409,7 @@ function validateApiKey(req, res, next) {
   }
 }
 
-// ===== 6. 디바이스 지문 검증 미들웨어 =====
+// ===== 7. 디바이스 지문 검증 미들웨어 =====
 
 /**
  * 디바이스 지문 검증 미들웨어
@@ -378,11 +418,6 @@ function validateApiKey(req, res, next) {
  * @param {Object} req - Express request 객체
  * @param {Object} res - Express response 객체
  * @param {Function} next - Express next 함수
- * 
- * @example
- * app.post('/api/summary', requireDeviceFingerprint, (req, res) => {
- *   // 디바이스 지문이 있는 요청만 처리
- * });
  */
 function requireDeviceFingerprint(req, res, next) {
   const fingerprint = req.headers['x-device-fingerprint'];
@@ -402,57 +437,6 @@ function requireDeviceFingerprint(req, res, next) {
   next();
 }
 
-// ===== 7. Rate Limit 미들웨어 헬퍼 =====
-
-/**
- * 사용자별 요청 제한 확인 (authenticate와 함께 사용)
- * @param {number} maxRequests - 허용된 최대 요청 수
- * @param {number} windowMs - 시간 윈도우 (밀리초)
- * @returns {Function} Express 미들웨어 함수
- * 
- * @example
- * app.post('/api/summary', 
- *   authenticate, 
- *   rateLimitByUser(10, 60000), // 1분에 10회
- *   (req, res) => { }
- * );
- */
-function rateLimitByUser(maxRequests, windowMs) {
-  const requests = new Map();
-  
-  return (req, res, next) => {
-    if (!req.user) {
-      return next();
-    }
-    
-    const userId = req.user.userId;
-    const now = Date.now();
-    const userRequests = requests.get(userId) || [];
-    
-    // 윈도우 밖의 요청 제거
-    const validRequests = userRequests.filter(time => now - time < windowMs);
-    
-    if (validRequests.length >= maxRequests) {
-      const oldestRequest = Math.min(...validRequests);
-      const retryAfter = Math.ceil((windowMs - (now - oldestRequest)) / 1000);
-      
-      res.set('Retry-After', retryAfter);
-      return sendAuthError(
-        res, 
-        429, 
-        `요청 제한을 초과했습니다. ${retryAfter}초 후 다시 시도해주세요`, 
-        'RATE_LIMIT_EXCEEDED'
-      );
-    }
-    
-    // 요청 기록
-    validRequests.push(now);
-    requests.set(userId, validRequests);
-    
-    next();
-  };
-}
-
 // ===== 내보내기 =====
 module.exports = {
   // 기본 인증 미들웨어
@@ -462,11 +446,11 @@ module.exports = {
   // 권한 검증 미들웨어
   requirePremium,
   requireRole,
+  requireEmailVerified,
   
   // 추가 보안 미들웨어
   validateApiKey,
   requireDeviceFingerprint,
-  rateLimitByUser,
   
   // 헬퍼 함수
   extractToken,

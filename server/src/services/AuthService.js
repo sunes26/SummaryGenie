@@ -1,24 +1,25 @@
 /**
- * 인증 서비스
+ * 인증 서비스 - Firebase Authentication 사용
  * 사용자 회원가입, 로그인, 프로필 관리 기능 제공
  * Singleton 패턴으로 구현
  * 
  * @module services/AuthService
- * @version 2.0.1
+ * @version 3.0.0 - Firebase Authentication 전환
  * 
- * 📝 주요 수정사항:
- * - initialize() 메서드 추가: Firebase 초기화 후 재초기화 지원
+ * 📝 주요 변경사항:
+ * - bcrypt 제거 → Firebase Auth가 비밀번호 관리
+ * - passwordHash 제거 → Firebase가 자동 처리
+ * - Firebase ID Token 검증 추가
+ * - 이메일 인증 링크 생성 기능 추가
+ * - OAuth 로그인 지원 준비
  */
 
-const { getFirestore, isFirebaseInitialized } = require('../config/firebase');
-const { hashPassword, comparePassword, validatePasswordStrength } = require('../utils/password');
-const { generateToken, generateRefreshToken } = require('../utils/jwt');
+const { getFirestore, getAdmin, isFirebaseInitialized } = require('../config/firebase');
 const {
   ValidationError,
   AuthenticationError,
   NotFoundError,
-  DatabaseError,
-  PasswordError
+  DatabaseError
 } = require('../middleware/errorHandler');
 const {
   COLLECTIONS,
@@ -35,7 +36,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * 인증 서비스 클래스
- * Firestore를 사용한 사용자 인증 및 관리
+ * Firebase Authentication + Firestore 사용
  */
 class AuthService {
   constructor() {
@@ -47,51 +48,57 @@ class AuthService {
     this.db = null;
 
     /**
-     * Firestore 사용 가능 여부
+     * Firebase Auth 인스턴스
+     * @type {admin.auth.Auth | null}
+     * @private
+     */
+    this.auth = null;
+
+    /**
+     * Firebase 사용 가능 여부
      * @type {boolean}
      * @private
      */
     this.isFirestoreAvailable = false;
 
-    // Firestore 초기화 (생성자에서 시도)
-    this._initializeFirestore();
+    // Firebase 초기화 (생성자에서 시도)
+    this._initializeFirebase();
   }
 
   /**
-   * Firestore 초기화 (내부 메서드)
+   * Firebase 초기화 (내부 메서드)
    * @private
    */
-  _initializeFirestore() {
+  _initializeFirebase() {
     try {
       if (isFirebaseInitialized()) {
         this.db = getFirestore();
+        this.auth = getAdmin().auth();
         this.isFirestoreAvailable = true;
-        console.log('✅ AuthService: Firestore 연결 성공');
+        console.log('✅ AuthService: Firebase Auth & Firestore 연결 성공');
       } else {
         console.warn('⚠️  AuthService: Firebase가 초기화되지 않았습니다');
       }
     } catch (error) {
-      console.error('❌ AuthService: Firestore 초기화 실패:', error.message);
+      console.error('❌ AuthService: Firebase 초기화 실패:', error.message);
       this.isFirestoreAvailable = false;
     }
   }
 
   /**
-   * ✅ 추가: Firestore 재초기화 (server.js에서 호출)
-   * Firebase 초기화 후 이 메서드를 호출하여 Firestore 연결
+   * Firebase 재초기화 (server.js에서 호출)
+   * Firebase 초기화 후 이 메서드를 호출하여 연결
    * 
    * @returns {Promise<void>}
-   * @throws {Error} Firestore 초기화 실패 시
-   * 
-   * @example
-   * await authService.initialize();
+   * @throws {Error} Firebase 초기화 실패 시
    */
   async initialize() {
     try {
       if (isFirebaseInitialized()) {
         this.db = getFirestore();
+        this.auth = getAdmin().auth();
         this.isFirestoreAvailable = true;
-        console.log('✅ AuthService: Firestore 재초기화 완료');
+        console.log('✅ AuthService: Firebase Auth 재초기화 완료');
       } else {
         throw new Error('Firebase가 초기화되지 않았습니다');
       }
@@ -103,21 +110,21 @@ class AuthService {
   }
 
   /**
-   * Firestore 사용 가능 여부 확인
+   * Firebase 사용 가능 여부 확인
    * @returns {boolean} 사용 가능 여부
    */
   isAvailable() {
-    return this.isFirestoreAvailable && this.db !== null;
+    return this.isFirestoreAvailable && this.db !== null && this.auth !== null;
   }
 
   /**
-   * Firestore 연결 확인
+   * Firebase 연결 확인
    * @private
-   * @throws {DatabaseError} Firestore를 사용할 수 없는 경우
+   * @throws {DatabaseError} Firebase를 사용할 수 없는 경우
    */
-  _checkFirestore() {
+  _checkFirebase() {
     if (!this.isAvailable()) {
-      throw new DatabaseError('Firestore를 사용할 수 없습니다');
+      throw new DatabaseError('Firebase를 사용할 수 없습니다');
     }
   }
 
@@ -148,30 +155,33 @@ class AuthService {
     return safeData;
   }
 
-  // ===== 회원가입 =====
+  // ===== 회원가입 (Firebase Authentication) =====
 
   /**
-   * 회원가입
+   * 회원가입 - Firebase Authentication 사용
    * 
    * @param {string} email - 사용자 이메일
    * @param {string} password - 사용자 비밀번호 (8자 이상)
    * @param {string} [name] - 사용자 이름 (선택)
-   * @returns {Promise<Object>} 생성된 사용자 정보 및 토큰
-   * @returns {Object} returns.user - 사용자 정보
-   * @returns {string} returns.accessToken - 액세스 토큰
-   * @returns {string} returns.refreshToken - 리프레시 토큰
+   * @returns {Promise<Object>} 생성된 사용자 정보
+   * @returns {Object} returns.user - 사용자 정보 (Firestore)
+   * @returns {string} returns.customToken - Firebase 커스텀 토큰
+   * @returns {string} returns.emailVerificationLink - 이메일 인증 링크
+   * @returns {string} returns.uid - Firebase UID
    * @throws {ValidationError} 입력값이 유효하지 않은 경우
    * @throws {DatabaseError} 이메일이 이미 존재하는 경우
    * 
    * @example
-   * const { user, accessToken, refreshToken } = await authService.signup(
+   * const result = await authService.signup(
    *   'user@example.com',
    *   'SecureP@ss123',
    *   'John Doe'
    * );
+   * // result.customToken을 클라이언트에 전달
+   * // result.emailVerificationLink를 이메일로 발송
    */
   async signup(email, password, name = null) {
-    this._checkFirestore();
+    this._checkFirebase();
 
     // 입력 검증
     this._validateEmail(email);
@@ -180,40 +190,29 @@ class AuthService {
       throw new ValidationError('비밀번호를 입력해주세요');
     }
 
-    // 비밀번호 강도 검증
-    const passwordCheck = validatePasswordStrength(password);
-    if (!passwordCheck.isValid) {
-      throw new PasswordError(
-        `비밀번호가 정책을 만족하지 않습니다: ${passwordCheck.missingRequirements.join(', ')}`
-      );
+    if (password.length < 8) {
+      throw new ValidationError('비밀번호는 최소 8자 이상이어야 합니다');
     }
 
     // 이메일 소문자 변환
     const normalizedEmail = email.toLowerCase().trim();
 
     try {
-      // 1. 이메일 중복 확인
-      const existingUser = await this.db
-        .collection(COLLECTIONS.USERS)
-        .where('email', '==', normalizedEmail)
-        .limit(1)
-        .get();
-
-      if (!existingUser.empty) {
-        throw new ValidationError(ERROR_MESSAGES.DUPLICATE_EMAIL);
-      }
-
-      // 2. 비밀번호 해싱
-      const passwordHash = await hashPassword(password);
-
-      // 3. 사용자 문서 생성
-      const userRef = this.db.collection(COLLECTIONS.USERS).doc();
-      const now = new Date();
-
-      const userData = {
-        id: userRef.id,
+      // 1. Firebase Authentication에 사용자 생성
+      const userRecord = await this.auth.createUser({
         email: normalizedEmail,
-        passwordHash,
+        password: password,
+        displayName: name || null,
+        emailVerified: false // 이메일 인증 필수
+      });
+
+      console.log(`✅ Firebase Auth 사용자 생성: ${userRecord.uid}`);
+
+      // 2. Firestore에 사용자 프로필 저장
+      const now = new Date();
+      const userData = {
+        id: userRecord.uid, // Firebase Auth UID 사용
+        email: normalizedEmail,
         name: name || null,
         isPremium: false,
         role: USER_ROLES.USER,
@@ -228,155 +227,104 @@ class AuthService {
         }
       };
 
-      await userRef.set(userData);
+      await this.db.collection(COLLECTIONS.USERS).doc(userRecord.uid).set(userData);
 
-      // 4. JWT 토큰 생성
-      const accessToken = generateToken({
-        userId: userData.id,
-        email: userData.email,
-        isPremium: userData.isPremium,
-        role: userData.role
+      console.log(`✅ Firestore 프로필 생성: ${userRecord.uid}`);
+
+      // 3. 커스텀 토큰 생성 (클라이언트에서 signInWithCustomToken 사용)
+      const customToken = await this.auth.createCustomToken(userRecord.uid, {
+        email: normalizedEmail,
+        isPremium: false,
+        role: USER_ROLES.USER
       });
 
-      const refreshToken = generateRefreshToken({
-        userId: userData.id
-      });
+      // 4. 이메일 인증 링크 생성
+      const emailVerificationLink = await this.auth.generateEmailVerificationLink(
+        normalizedEmail,
+        {
+          url: `${process.env.FRONTEND_URL}/email-verified`,
+          handleCodeInApp: true
+        }
+      );
 
-      // 5. 응답 데이터 구성 (비밀번호 해시 제외)
-      const safeUserData = this._sanitizeUserData(userData);
-
-      console.log(`✅ 회원가입 성공: ${userData.email} (ID: ${userData.id})`);
+      console.log(`✅ 회원가입 성공: ${normalizedEmail} (UID: ${userRecord.uid})`);
 
       return {
-        user: safeUserData,
-        accessToken,
-        refreshToken
+        user: this._sanitizeUserData(userData),
+        customToken,
+        emailVerificationLink, // EmailService로 발송
+        uid: userRecord.uid
       };
 
     } catch (error) {
-      // 이미 처리된 커스텀 에러는 그대로 throw
-      if (error instanceof ValidationError || error instanceof PasswordError) {
-        throw error;
+      // Firebase 특정 에러 처리
+      if (error.code === 'auth/email-already-exists') {
+        throw new ValidationError(ERROR_MESSAGES.DUPLICATE_EMAIL);
+      }
+      if (error.code === 'auth/invalid-email') {
+        throw new ValidationError('유효하지 않은 이메일입니다');
+      }
+      if (error.code === 'auth/weak-password') {
+        throw new ValidationError('비밀번호가 너무 약합니다 (최소 8자)');
       }
 
-      // Firestore 에러 처리
       console.error('회원가입 실패:', error);
       throw new DatabaseError(`회원가입 중 오류가 발생했습니다: ${error.message}`);
     }
   }
 
-  // ===== 로그인 =====
+  // ===== Firebase ID Token 검증 =====
 
   /**
-   * 로그인
+   * Firebase ID Token 검증
+   * 클라이언트에서 받은 ID Token을 검증
    * 
-   * @param {string} email - 사용자 이메일
-   * @param {string} password - 사용자 비밀번호
-   * @returns {Promise<Object>} 사용자 정보 및 토큰
-   * @returns {Object} returns.user - 사용자 정보
-   * @returns {string} returns.accessToken - 액세스 토큰
-   * @returns {string} returns.refreshToken - 리프레시 토큰
-   * @throws {ValidationError} 입력값이 유효하지 않은 경우
-   * @throws {AuthenticationError} 인증에 실패한 경우
+   * @param {string} idToken - Firebase ID Token
+   * @returns {Promise<Object>} 디코딩된 토큰 정보
+   * @returns {string} returns.uid - 사용자 UID
+   * @returns {string} returns.email - 사용자 이메일
+   * @returns {boolean} returns.email_verified - 이메일 인증 여부
+   * @throws {AuthenticationError} 토큰이 유효하지 않은 경우
    * 
    * @example
-   * const { user, accessToken, refreshToken } = await authService.login(
-   *   'user@example.com',
-   *   'SecureP@ss123'
-   * );
+   * const decodedToken = await authService.verifyIdToken(idToken);
+   * console.log(decodedToken.uid); // 'abc123...'
    */
-  async login(email, password) {
-    this._checkFirestore();
-
-    // 입력 검증
-    this._validateEmail(email);
-
-    if (!password || typeof password !== 'string') {
-      throw new ValidationError('비밀번호를 입력해주세요');
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
+  async verifyIdToken(idToken) {
+    this._checkFirebase();
 
     try {
-      // 1. 이메일로 사용자 조회
-      const userSnapshot = await this.db
-        .collection(COLLECTIONS.USERS)
-        .where('email', '==', normalizedEmail)
-        .limit(1)
-        .get();
-
-      if (userSnapshot.empty) {
-        throw new AuthenticationError(ERROR_MESSAGES.INVALID_CREDENTIALS);
-      }
-
-      const userDoc = userSnapshot.docs[0];
-      const userData = userDoc.data();
-
-      // 2. 비밀번호 검증
-      const isPasswordValid = await comparePassword(password, userData.passwordHash);
-      
-      if (!isPasswordValid) {
-        throw new AuthenticationError(ERROR_MESSAGES.INVALID_CREDENTIALS);
-      }
-
-      // 3. 로그인 정보 업데이트
-      const now = new Date();
-      await userDoc.ref.update({
-        lastLoginAt: now,
-        updatedAt: now,
-        'metadata.loginCount': (userData.metadata?.loginCount || 0) + 1
-      });
-
-      // 4. JWT 토큰 생성
-      const accessToken = generateToken({
-        userId: userData.id,
-        email: userData.email,
-        isPremium: userData.isPremium,
-        role: userData.role
-      });
-
-      const refreshToken = generateRefreshToken({
-        userId: userData.id
-      });
-
-      // 5. 응답 데이터 구성
-      const safeUserData = this._sanitizeUserData(userData);
-
-      console.log(`✅ 로그인 성공: ${userData.email} (ID: ${userData.id})`);
-
-      return {
-        user: safeUserData,
-        accessToken,
-        refreshToken
-      };
-
+      const decodedToken = await this.auth.verifyIdToken(idToken, true); // checkRevoked=true
+      return decodedToken;
     } catch (error) {
-      // 이미 처리된 커스텀 에러는 그대로 throw
-      if (error instanceof AuthenticationError || error instanceof ValidationError) {
-        throw error;
+      if (error.code === 'auth/id-token-expired') {
+        throw new AuthenticationError('토큰이 만료되었습니다');
       }
-
-      // Firestore 에러 처리
-      console.error('로그인 실패:', error);
-      throw new DatabaseError(`로그인 중 오류가 발생했습니다: ${error.message}`);
+      if (error.code === 'auth/id-token-revoked') {
+        throw new AuthenticationError('토큰이 취소되었습니다');
+      }
+      if (error.code === 'auth/argument-error') {
+        throw new AuthenticationError('유효하지 않은 토큰 형식입니다');
+      }
+      throw new AuthenticationError('유효하지 않은 토큰입니다');
     }
   }
 
   // ===== 사용자 조회 =====
 
   /**
-   * ID로 사용자 조회
+   * UID로 사용자 조회
    * 
-   * @param {string} userId - 사용자 고유 식별자
+   * @param {string} userId - 사용자 고유 식별자 (Firebase UID)
    * @returns {Promise<Object>} 사용자 정보 (비밀번호 해시 제외)
    * @throws {ValidationError} userId가 유효하지 않은 경우
    * @throws {NotFoundError} 사용자를 찾을 수 없는 경우
    * 
    * @example
-   * const user = await authService.getUserById('user123');
+   * const user = await authService.getUserById('abc123uid');
    */
   async getUserById(userId) {
-    this._checkFirestore();
+    this._checkFirebase();
 
     if (!userId || typeof userId !== 'string') {
       throw new ValidationError('유효하지 않은 사용자 ID입니다');
@@ -407,9 +355,10 @@ class AuthService {
 
   /**
    * 이메일로 사용자 조회
+   * Firebase Auth와 Firestore 모두 조회
    * 
    * @param {string} email - 사용자 이메일
-   * @returns {Promise<Object>} 사용자 정보 (비밀번호 해시 제외)
+   * @returns {Promise<Object>} 사용자 정보
    * @throws {ValidationError} 이메일이 유효하지 않은 경우
    * @throws {NotFoundError} 사용자를 찾을 수 없는 경우
    * 
@@ -417,26 +366,32 @@ class AuthService {
    * const user = await authService.getUserByEmail('user@example.com');
    */
   async getUserByEmail(email) {
-    this._checkFirestore();
+    this._checkFirebase();
 
     this._validateEmail(email);
     const normalizedEmail = email.toLowerCase().trim();
 
     try {
-      const userSnapshot = await this.db
+      // Firebase Auth에서 조회
+      const userRecord = await this.auth.getUserByEmail(normalizedEmail);
+      
+      // Firestore에서 프로필 조회
+      const userDoc = await this.db
         .collection(COLLECTIONS.USERS)
-        .where('email', '==', normalizedEmail)
-        .limit(1)
+        .doc(userRecord.uid)
         .get();
 
-      if (userSnapshot.empty) {
+      if (!userDoc.exists) {
         throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
       }
 
-      const userData = userSnapshot.docs[0].data();
+      const userData = userDoc.data();
       return this._sanitizeUserData(userData);
 
     } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
+      }
       if (error instanceof NotFoundError || error instanceof ValidationError) {
         throw error;
       }
@@ -467,7 +422,7 @@ class AuthService {
    * });
    */
   async updateProfile(userId, updates) {
-    this._checkFirestore();
+    this._checkFirebase();
 
     if (!userId || typeof userId !== 'string') {
       throw new ValidationError('유효하지 않은 사용자 ID입니다');
@@ -498,6 +453,15 @@ class AuthService {
       // updatedAt 추가
       sanitizedUpdates.updatedAt = new Date();
 
+      // Firebase Auth 프로필도 업데이트 (displayName만)
+      if (sanitizedUpdates.name) {
+        await this.auth.updateUser(userId, {
+          displayName: sanitizedUpdates.name
+        });
+        console.log(`✅ Firebase Auth displayName 업데이트: ${userId}`);
+      }
+
+      // Firestore 업데이트
       await userRef.update(sanitizedUpdates);
 
       // 업데이트된 사용자 데이터 조회
@@ -517,64 +481,39 @@ class AuthService {
     }
   }
 
-  // ===== 비밀번호 변경 =====
+  // ===== 비밀번호 변경 (Firebase Auth) =====
 
   /**
    * 비밀번호 변경
+   * Firebase Authentication의 비밀번호 업데이트 사용
    * 
    * @param {string} userId - 사용자 고유 식별자
-   * @param {string} oldPassword - 현재 비밀번호
    * @param {string} newPassword - 새 비밀번호
    * @returns {Promise<Object>} 성공 메시지
    * @throws {ValidationError} 입력값이 유효하지 않은 경우
-   * @throws {AuthenticationError} 현재 비밀번호가 일치하지 않는 경우
-   * @throws {NotFoundError} 사용자를 찾을 수 없는 경우
    * 
    * @example
-   * await authService.changePassword('user123', 'OldP@ss123', 'NewP@ss456');
+   * await authService.changePassword('user123', 'NewP@ss456');
    */
-  async changePassword(userId, oldPassword, newPassword) {
-    this._checkFirestore();
+  async changePassword(userId, newPassword) {
+    this._checkFirebase();
 
     if (!userId || typeof userId !== 'string') {
       throw new ValidationError('유효하지 않은 사용자 ID입니다');
     }
 
-    if (!oldPassword || !newPassword) {
-      throw new ValidationError('현재 비밀번호와 새 비밀번호를 모두 입력해주세요');
-    }
-
-    // 새 비밀번호 강도 검증
-    const passwordCheck = validatePasswordStrength(newPassword);
-    if (!passwordCheck.isValid) {
-      throw new PasswordError(
-        `새 비밀번호가 정책을 만족하지 않습니다: ${passwordCheck.missingRequirements.join(', ')}`
-      );
+    if (!newPassword || newPassword.length < 8) {
+      throw new ValidationError('비밀번호는 최소 8자 이상이어야 합니다');
     }
 
     try {
-      const userRef = this.db.collection(COLLECTIONS.USERS).doc(userId);
-      const userDoc = await userRef.get();
+      // Firebase Auth에서 비밀번호 업데이트
+      await this.auth.updateUser(userId, {
+        password: newPassword
+      });
 
-      if (!userDoc.exists) {
-        throw new NotFoundError(ERROR_MESSAGES.USER_NOT_FOUND);
-      }
-
-      const userData = userDoc.data();
-
-      // 현재 비밀번호 검증
-      const isOldPasswordValid = await comparePassword(oldPassword, userData.passwordHash);
-      
-      if (!isOldPasswordValid) {
-        throw new AuthenticationError('현재 비밀번호가 일치하지 않습니다');
-      }
-
-      // 새 비밀번호 해싱
-      const newPasswordHash = await hashPassword(newPassword);
-
-      // 비밀번호 업데이트
-      await userRef.update({
-        passwordHash: newPasswordHash,
+      // Firestore updatedAt 업데이트
+      await this.db.collection(COLLECTIONS.USERS).doc(userId).update({
         updatedAt: new Date()
       });
 
@@ -586,17 +525,106 @@ class AuthService {
       };
 
     } catch (error) {
-      if (
-        error instanceof NotFoundError ||
-        error instanceof ValidationError ||
-        error instanceof AuthenticationError ||
-        error instanceof PasswordError
-      ) {
-        throw error;
-      }
-
       console.error('비밀번호 변경 실패:', error);
       throw new DatabaseError(`비밀번호 변경 중 오류가 발생했습니다: ${error.message}`);
+    }
+  }
+
+  // ===== 이메일 인증 =====
+
+  /**
+   * 이메일 인증 링크 생성
+   * 
+   * @param {string} email - 사용자 이메일
+   * @returns {Promise<string>} 이메일 인증 링크
+   * 
+   * @example
+   * const link = await authService.generateEmailVerificationLink('user@example.com');
+   * // EmailService로 발송
+   */
+  async generateEmailVerificationLink(email) {
+    this._checkFirebase();
+    this._validateEmail(email);
+
+    try {
+      const link = await this.auth.generateEmailVerificationLink(
+        email,
+        {
+          url: `${process.env.FRONTEND_URL}/email-verified`,
+          handleCodeInApp: true
+        }
+      );
+
+      return link;
+    } catch (error) {
+      console.error('이메일 인증 링크 생성 실패:', error);
+      throw new DatabaseError('이메일 인증 링크 생성 중 오류가 발생했습니다');
+    }
+  }
+
+  /**
+   * 이메일 인증 상태 업데이트
+   * 
+   * @param {string} userId - 사용자 UID
+   * @param {boolean} verified - 인증 여부
+   * @returns {Promise<void>}
+   */
+  async updateEmailVerificationStatus(userId, verified = true) {
+    this._checkFirebase();
+
+    try {
+      // Firebase Auth에서 업데이트
+      await this.auth.updateUser(userId, {
+        emailVerified: verified
+      });
+
+      // Firestore에도 업데이트
+      await this.db.collection(COLLECTIONS.USERS).doc(userId).update({
+        'metadata.emailVerified': verified,
+        'metadata.emailVerifiedAt': verified ? new Date() : null,
+        updatedAt: new Date()
+      });
+
+      console.log(`✅ 이메일 인증 상태 업데이트: ${userId} - ${verified}`);
+    } catch (error) {
+      console.error('이메일 인증 상태 업데이트 실패:', error);
+      throw error;
+    }
+  }
+
+  // ===== 비밀번호 재설정 링크 생성 =====
+
+  /**
+   * 비밀번호 재설정 링크 생성
+   * 
+   * @param {string} email - 사용자 이메일
+   * @returns {Promise<string>} 비밀번호 재설정 링크
+   * 
+   * @example
+   * const link = await authService.generatePasswordResetLink('user@example.com');
+   */
+  async generatePasswordResetLink(email) {
+    this._checkFirebase();
+    this._validateEmail(email);
+
+    try {
+      const link = await this.auth.generatePasswordResetLink(
+        email,
+        {
+          url: `${process.env.FRONTEND_URL}/reset-password-complete`,
+          handleCodeInApp: true
+        }
+      );
+
+      return link;
+    } catch (error) {
+      if (error.code === 'auth/user-not-found') {
+        // 보안: 사용자 존재 여부 노출 방지
+        console.log('비밀번호 재설정 요청 (사용자 없음):', email);
+        return null;
+      }
+      console.error('비밀번호 재설정 링크 생성 실패:', error);
+      throw new DatabaseError('비밀번호 재설정 링크 생성 중 오류가 발생했습니다');
     }
   }
 }

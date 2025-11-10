@@ -1,4 +1,5 @@
 /**
+ * extension\modules\i18n-manager.js
  * 다국어 지원 관리 모듈
  * Chrome Extension의 i18n API를 확장하여 런타임 언어 전환 지원
  * 

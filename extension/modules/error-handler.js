@@ -1,4 +1,5 @@
 /**
+ * extension\modules\error-handler.js
  * SummaryGenie Error Handler
  * 에러 처리, 분류, 로깅, 재시도 로직
  * 

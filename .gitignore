@@ -133,3 +133,5 @@ scripts/output/
 # 사용자 업로드 파일 (있다면)
 uploads/
 public/uploads/
+
+SECURITY.md

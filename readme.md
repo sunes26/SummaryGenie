@@ -1372,9 +1372,7 @@ curl http://localhost:3000/health
 
 ## 📧 연락처
 
-- 프로젝트 링크: [https://github.com/yourusername/summarygenie](https://github.com/yourusername/summarygenie)
-- 이메일: support@summarygenie.com
-- Discord: [SummaryGenie Community](https://discord.gg/summarygenie)
+- 프로젝트 링크: [https://github.com/sunes26/SummaryGenie](https://github.com/sunes26/SummaryGenie)
 
 ## 🙏 감사의 말
 

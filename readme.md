@@ -1401,6 +1401,6 @@ curl http://localhost:3000/health
 
 ---
 
-**Made with ❤️ by SummaryGenie Team**
+**Made with by SummaryGenie Team**
 
-**Version**: 2.5.0 | **Last Updated**: 2025-01-10
+**Version**: 2.5.0 | **Last Updated**: 2025-11-11

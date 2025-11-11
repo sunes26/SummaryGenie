@@ -3,11 +3,13 @@
  * SummaryGenie Popup Main Script
  * 요약 버튼 클릭 시 Side Panel로 리다이렉트
  *
- * ✨ v3.8.0 업데이트:
- * - PDF 페이지 감지 및 프리미엄 체크 추가
- * - handlePDFPage 메서드 구현
+ * ✨ v3.9.0 업데이트:
+ * - 사용량 표시 깜빡임 제거
+ * - 초기 로딩 시 정확한 값만 표시
+ * - storage 리스너로 실시간 업데이트
+ * - 프리미엄/무료 상태 즉시 반영
  *
- * @version 3.8.0
+ * @version 3.9.0
  */
 
 class AppController {
@@ -17,15 +19,16 @@ class AppController {
       title: '',
       url: '',
       domain: '',
-      isPDF: false, // 🆕 PDF 여부 추가
+      isPDF: false,
     };
     this.currentUser = null;
     this.usage = {
       daily: 0,
       limit: 5,
     };
-    this.isPremium = false; // 🆕 프리미엄 여부 추가
+    this.isPremium = false;
     this.initialized = false;
+    this.usageLoaded = false; // ✅ 사용량 로드 완료 플래그
   }
 
   async initialize() {
@@ -49,11 +52,18 @@ class AppController {
 
       this.updateUITexts();
       await this.loadCurrentTab();
-      await this.checkUsage();
 
+      // ✅ 사용량 조회 전에 먼저 캐시된 데이터나 storage 확인
+      await this.loadUsageFromStorage();
+
+      // ✅ 이벤트 리스너 먼저 설정 (storage 변경 감지)
       this.setupEventListeners();
-      window.languageManager.applyLanguageFont();
+      this.setupStorageListener();
 
+      // ✅ 서버에서 최신 사용량 조회 (백그라운드)
+      this.checkUsage();
+
+      window.languageManager.applyLanguageFont();
       this.displayUserInfo();
 
       this.initialized = true;
@@ -63,6 +73,65 @@ class AppController {
       window.errorHandler.handle(error, 'popup-initialization');
       this.showError('initializationError');
     }
+  }
+
+  /**
+   * ✅ storage에서 캐시된 사용량 먼저 로드 (깜빡임 방지)
+   */
+  async loadUsageFromStorage() {
+    try {
+      const result = await chrome.storage.local.get(['usageData']);
+
+      if (result.usageData) {
+        console.log('[Popup] Storage에서 캐시된 사용량 로드:', result.usageData);
+
+        this.usage.daily = result.usageData.isPremium
+          ? 0
+          : result.usageData.dailyUsed || 0;
+        this.usage.limit = result.usageData.isPremium
+          ? Infinity
+          : result.usageData.dailyLimit || 3;
+
+        this.isPremium = result.usageData.isPremium || false;
+
+        // ✅ 즉시 UI 업데이트
+        this.updateUsageDisplay();
+        this.usageLoaded = true;
+      } else {
+        console.log('[Popup] Storage에 캐시된 사용량 없음 - 서버 조회 대기');
+      }
+    } catch (error) {
+      console.error('[Popup] Storage 로드 오류:', error);
+    }
+  }
+
+  /**
+   * ✅ storage 변경 감지 리스너 (실시간 업데이트)
+   */
+  setupStorageListener() {
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'local' && changes.usageData) {
+        console.log('[Popup] Storage 변경 감지 - 사용량 업데이트');
+
+        const newUsageData = changes.usageData.newValue;
+
+        if (newUsageData) {
+          this.usage.daily = newUsageData.isPremium
+            ? 0
+            : newUsageData.dailyUsed || 0;
+          this.usage.limit = newUsageData.isPremium
+            ? Infinity
+            : newUsageData.dailyLimit || 3;
+
+          this.isPremium = newUsageData.isPremium || false;
+
+          // ✅ UI 즉시 업데이트
+          this.updateUsageDisplay();
+        }
+      }
+    });
+
+    console.log('[Popup] Storage 리스너 설정 완료');
   }
 
   showLoginRequiredScreen() {
@@ -190,9 +259,7 @@ class AppController {
 
         console.log('[Auth] 토큰 유효함 - 서버에서 사용자 정보 조회');
 
-        // ✅ 서버에서 실제 프리미엄 상태 조회 (Firestore)
-        // 📝 프로덕션 배포 시 URL 변경: https://api.summarygenie.com/api/auth/me
-        const API_BASE_URL = 'http://localhost:3000'; // 개발 환경
+        const API_BASE_URL = 'http://localhost:3000';
 
         try {
           const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
@@ -208,7 +275,7 @@ class AppController {
               id: data.user.id,
               email: data.user.email,
               name: data.user.name,
-              isPremium: data.user.isPremium, // ✅ Firestore에서 가져온 정확한 값
+              isPremium: data.user.isPremium,
             };
 
             this.isPremium = data.user.isPremium;
@@ -222,13 +289,12 @@ class AppController {
           console.error('[Auth] API 호출 오류:', apiError);
         }
 
-        // 폴백: API 호출 실패 시 토큰에서 기본 정보만 사용
         console.log('[Auth] 폴백: 토큰에서 기본 정보 사용');
         this.currentUser = {
           id: payload.sub || payload.userId,
           email: payload.email,
           name: payload.name,
-          isPremium: false, // 안전하게 false로 처리
+          isPremium: false,
         };
 
         this.isPremium = false;
@@ -242,8 +308,6 @@ class AppController {
       return false;
     }
   }
-
-  // 🚨 [수정됨] 248라인에 있던 불필요한 '}' 제거됨
 
   displayUserInfo() {
     if (!this.currentUser) return;
@@ -320,7 +384,6 @@ class AppController {
         throw new Error(window.languageManager.getMessage('errorExtractContent'));
       }
 
-      // 🆕 PDF 감지
       const isPDF = window.isPDFUrl ? window.isPDFUrl(tab.url) : false;
 
       this.currentPageInfo = {
@@ -332,7 +395,6 @@ class AppController {
 
       window.uiManager.displayPageInfo(this.currentPageInfo);
 
-      // 🆕 PDF 처리
       if (isPDF) {
         console.log('[Popup] PDF 페이지 감지:', tab.url);
         this.handlePDFPage();
@@ -350,20 +412,14 @@ class AppController {
     }
   }
 
-  /**
-   * ✅ PDF 페이지 처리
-   * 프리미엄 사용자: 정상 진행
-   * 무료 사용자: 업그레이드 안내
-   */
   handlePDFPage() {
     const summarizeBtn = document.getElementById('summarizeBtn');
 
     if (!this.isPremium) {
       console.log('[Popup] PDF 요약 차단 - 무료 사용자');
 
-      // 버튼 비활성화 및 프리미엄 안내로 변경
       if (summarizeBtn) {
-        summarizeBtn.disabled = false; // 클릭은 가능하게
+        summarizeBtn.disabled = false;
         const buttonIcon = summarizeBtn.querySelector('.btn-icon');
         const buttonText = summarizeBtn.querySelector('span[data-i18n]');
 
@@ -379,7 +435,6 @@ class AppController {
         }
       }
 
-      // 안내 메시지 표시
       const infoMessage = document.querySelector('.info-message');
       if (infoMessage) {
         infoMessage.innerHTML = `
@@ -393,7 +448,6 @@ class AppController {
     } else {
       console.log('[Popup] PDF 요약 허용 - 프리미엄 사용자');
 
-      // 프리미엄 사용자는 일반 페이지와 동일하게 처리
       if (summarizeBtn) {
         summarizeBtn.disabled = false;
         const buttonText = summarizeBtn.querySelector('span[data-i18n]');
@@ -404,27 +458,21 @@ class AppController {
     }
   }
 
-  /**
-   * ✅ 요약하기 버튼 클릭 시 사이드 패널 열기
-   */
   async summarizePage() {
     try {
       console.log('[Popup] 요약 버튼 클릭 - Side Panel 열기');
 
-      // 🆕 PDF이고 무료 사용자면 업그레이드 모달 표시
       if (this.currentPageInfo.isPDF && !this.isPremium) {
         console.log('[Popup] PDF 요약 차단 - 업그레이드 모달 표시');
         this.showPDFUpgradeModal();
         return;
       }
 
-      // 1. 자동 요약 플래그 설정
       await chrome.storage.local.set({
         autoSummarize: true,
         summaryLength: window.settingsManager.getSummaryLength(),
       });
 
-      // 2. Side Panel 열기
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
@@ -433,13 +481,11 @@ class AppController {
       if (chrome.sidePanel && chrome.sidePanel.open) {
         await chrome.sidePanel.open({ windowId: tab.windowId });
       } else {
-        // 폴백: 새 탭에서 열기
         chrome.tabs.create({
           url: chrome.runtime.getURL('sidepanel.html'),
         });
       }
 
-      // 3. 팝업 닫기
       window.close();
     } catch (error) {
       console.error('[Popup] Side Panel 열기 오류:', error);
@@ -448,9 +494,6 @@ class AppController {
     }
   }
 
-  /**
-   * ✅ PDF 업그레이드 모달 표시
-   */
   showPDFUpgradeModal() {
     const existingModal = document.getElementById('pdfUpgradeModal');
     if (existingModal) {
@@ -560,26 +603,26 @@ class AppController {
 
   async checkUsage() {
     try {
-      // usageManager가 로드되지 않았을 경우 방어 코드
       if (!window.usageManager) {
-        console.warn(
-          '[Popup] usageManager가 아직 로드되지 않았습니다. 기본값 사용'
-        );
+        console.warn('[Popup] usageManager 미로드 - 기본값 사용');
         this.usage.daily = 0;
         this.usage.limit = 5;
         this.updateUsageDisplay();
         return;
       }
 
-      console.log('[Popup] 사용량 조회 시작...');
+      console.log('[Popup] 서버에서 사용량 조회 시작...');
       const usageStatus = await window.usageManager.getUsageStatus();
 
       console.log('[Popup] 사용량 조회 응답:', usageStatus);
 
       this.usage.daily = usageStatus.isPremium ? 0 : usageStatus.dailyUsed;
       this.usage.limit = usageStatus.isPremium ? Infinity : usageStatus.dailyLimit;
+      this.isPremium = usageStatus.isPremium;
 
+      // ✅ 서버 조회 후 최종 업데이트
       this.updateUsageDisplay();
+      this.usageLoaded = true;
 
       console.log('[Popup] 사용량 조회 완료:', {
         isPremium: usageStatus.isPremium,
@@ -590,12 +633,21 @@ class AppController {
       console.error('[Popup] 사용량 확인 오류:', error);
       window.errorHandler.handle(error, 'check-usage');
 
-      this.usage.daily = 0;
-      this.usage.limit = 5;
-      this.updateUsageDisplay();
+      // ✅ 오류 발생 시 기본값으로 폴백 (깜빡임 없이)
+      if (!this.usageLoaded) {
+        this.usage.daily = 0;
+        this.usage.limit = 3;
+        this.updateUsageDisplay();
+      }
     }
   }
 
+  /**
+   * ✅ 사용량 표시 업데이트 (깜빡임 제거)
+   * - 프리미엄: 즉시 "✨ 무제한" 표시
+   * - 무료: 정확한 "오늘 X회/Y회" 표시
+   * - 플레이스홀더나 중간 상태 절대 표시 안 함
+   */
   updateUsageDisplay() {
     const usageText = document.getElementById('usageText');
     if (!usageText) {
@@ -603,56 +655,66 @@ class AppController {
       return;
     }
 
-    // usageManager가 아직 로드되지 않았을 경우 방어 코드
-    if (!window.usageManager) {
-      console.warn('[Popup] usageManager가 아직 로드되지 않았습니다');
-      usageText.textContent = '로딩 중...';
-      return;
-    }
+    // ✅ 프리미엄 우선 체크
+    if (this.isPremium) {
+      const currentLang = window.languageManager?.getCurrentLanguage() || 'ko';
 
-    const isPremium = window.usageManager.isPremium();
-    console.log('[Popup] 프리미엄 상태:', isPremium);
-
-    if (isPremium) {
-      const unlimitedMsg =
-        window.languageManager.getMessage('unlimited') || '무제한';
-      usageText.textContent = `✨ ${unlimitedMsg}`;
-      usageText.style.color = '#4CAF50';
-      console.log('[Popup] 프리미엄 사용자 - 표시:', usageText.textContent);
-    } else {
-      const usedCount = this.usage.daily;
-      const totalLimit = this.usage.limit;
-
-      console.log('[Popup] 무료 사용자 - 사용량:', { usedCount, totalLimit });
-
-      const currentLang = window.languageManager.getCurrentLanguage();
-      let message;
-
+      let unlimitedText;
       switch (currentLang) {
         case 'en':
-          message = `Today: ${usedCount}/${totalLimit}`;
+          unlimitedText = 'Unlimited';
           break;
         case 'ja':
-          message = `今日: ${usedCount}/${totalLimit}`;
+          unlimitedText = '無制限';
           break;
         case 'zh':
-          message = `今日: ${usedCount}/${totalLimit}`;
+          unlimitedText = '无限';
           break;
         case 'ko':
         default:
-          message = `오늘 ${usedCount}회/${totalLimit}회`;
+          unlimitedText = '무제한';
           break;
       }
 
-      console.log('[Popup] 최종 메시지:', message);
-
-      usageText.textContent = message;
-      usageText.style.color = '';
+      usageText.textContent = `✨ ${unlimitedText}`;
+      usageText.style.color = '#4CAF50';
+      usageText.style.opacity = '1';
+      console.log('[Popup] 프리미엄 사용자 - 표시:', usageText.textContent);
+      return;
     }
 
+    // ✅ 무료 사용자: 정확한 사용량 표시
+    const usedCount = this.usage.daily || 0;
+    const totalLimit = this.usage.limit || 3;
+
+    const currentLang = window.languageManager?.getCurrentLanguage() || 'ko';
+
+    let message;
+    switch (currentLang) {
+      case 'en':
+        message = `Today: ${usedCount}/${totalLimit}`;
+        break;
+      case 'ja':
+        message = `今日: ${usedCount}/${totalLimit}`;
+        break;
+      case 'zh':
+        message = `今日: ${usedCount}/${totalLimit}`;
+        break;
+      case 'ko':
+      default:
+        message = `오늘 ${usedCount}회/${totalLimit}회`;
+        break;
+    }
+
+    usageText.textContent = message;
+    usageText.style.color = '';
+    usageText.style.opacity = '1';
+    console.log('[Popup] 무료 사용자 - 표시:', message);
+
+    // ✅ 버튼 활성화/비활성화
     const summarizeBtn = document.getElementById('summarizeBtn');
-    if (!isPremium && this.usage.daily >= this.usage.limit) {
-      if (summarizeBtn) {
+    if (summarizeBtn) {
+      if (usedCount >= totalLimit) {
         summarizeBtn.disabled = true;
         const buttonText = summarizeBtn.querySelector(
           'span[data-i18n="summarizeButton"]'
@@ -662,9 +724,7 @@ class AppController {
             window.languageManager.getMessage('dailyLimitExceeded');
         }
         console.log('[Popup] 버튼 비활성화 - 사용 한도 초과');
-      }
-    } else {
-      if (summarizeBtn) {
+      } else {
         summarizeBtn.disabled = false;
         const buttonText = summarizeBtn.querySelector(
           'span[data-i18n="summarizeButton"]'
@@ -681,7 +741,6 @@ class AppController {
   setupEventListeners() {
     const elements = window.uiManager.elements;
 
-    // ✅ 요약 버튼: Side Panel 열기
     if (elements.summarizeBtn) {
       elements.summarizeBtn.addEventListener('click', () => this.summarizePage());
     }

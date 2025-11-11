@@ -2,7 +2,7 @@
 
 > AI 기반 웹페이지 요약 및 질문-답변 Chrome Extension
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/yourusername/summarygenie)
+[![Version](https://img.shields.io/badge/version-2.7.0-blue.svg)](https://github.com/yourusername/summarygenie)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Coming%20Soon-orange.svg)]()
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange.svg)](https://firebase.google.com/)
@@ -25,6 +25,7 @@
 - [보안 및 인증](#-보안-및-인증)
 - [에러 처리](#-에러-처리)
 - [모니터링](#-모니터링)
+- [로드맵](#-로드맵)
 - [라이선스](#-라이선스)
 
 ## 🎯 프로젝트 소개
@@ -35,14 +36,15 @@
 
 - ⚡ **빠른 요약**: 긴 글, 뉴스, 논문을 3-5줄로 즉시 요약
 - 📄 **PDF 지원**: PDF 파일 텍스트 자동 추출 및 요약 (180초 타임아웃, 프리미엄 전용)
-- 💬 **대화형 Q&A**: 요약 후 추가 질문으로 깊이 있는 이해
+- 💬 **대화형 Q&A**: 요약 후 추가 질문으로 깊이 있는 이해 (프리미엄 전용)
 - 🌏 **다국어 지원**: 한국어, 영어, 일본어, 중국어 완벽 지원
 - 🔐 **Firebase 인증**: 영구 로그인 및 자동 토큰 갱신
 - ☁️ **클라우드 동기화**: 여러 기기에서 히스토리 공유 (Firestore)
-- 🎨 **깔끔한 UI**: Material Design 기반의 직관적 인터페이스
+- 🎨 **현대적 UI**: Material Design 기반의 직관적 Side Panel 인터페이스
 - ✨ **실시간 진행 상황**: PDF 추출 단계별 시각적 피드백
 - 🛡️ **Circuit Breaker**: OpenAI API 장애 시 자동 복구
 - 📧 **이메일 통합**: 회원가입, 비밀번호 재설정 이메일 자동 발송
+- 🔄 **Service Worker Keep-Alive**: PDF 처리 시 안정적인 백그라운드 작업
 
 ### 타겟 사용자
 
@@ -56,14 +58,15 @@
 ### 무료 버전
 - ✅ 하루 3회 웹페이지 요약
 - ✅ 요약 길이 자동 최적화 (콘텐츠 길이 기반)
-- ✅ 기본 질문 기능 (3회/일)
 - ✅ 로컬 히스토리 저장
 - ✅ 4개 언어 지원 (한국어, 영어, 일본어, 중국어)
 - ✅ Rate Limiting (분당 30회)
+- ✅ Modern Side Panel UI
 
 ### 프리미엄 버전
-- 🌟 무제한 요약 및 질문
-- 🌟 **PDF 파일 요약 지원** (180초 타임아웃, 실시간 진행 표시)
+- 🌟 무제한 요약
+- 🌟 **PDF 파일 요약 지원** (ES Module 기반, 180초 타임아웃, 실시간 진행 표시)
+- 🌟 **무제한 질문 기능** (채팅 스타일 Q&A UI)
 - 🌟 클라우드 히스토리 동기화 (Firestore)
 - 🌟 고급 요약 옵션 (very_detailed, ultra_detailed)
 - 🌟 다국어 번역 + 요약
@@ -84,7 +87,7 @@
 - **프레임워크**: Vanilla JS (Chrome Extension Manifest V3)
 - **UI 라이브러리**: Material Icons, Inter Font
 - **다국어**: Chrome i18n API + I18nManager (v6.0.0)
-- **PDF 처리**: PDF.js (ES Module, .mjs)
+- **PDF 처리**: PDF.js (ES Module, .mjs) v2.0.0
 
 ### Backend (Proxy Server)
 - **언어**: Node.js 18+ + Express.js
@@ -117,21 +120,28 @@
 ┌─────────────────────────────────────────────────────────┐
 │                   Chrome Extension                       │
 │  ┌────────────┐  ┌────────────┐  ┌────────────┐       │
-│  │   Popup    │  │  Content   │  │ Background │       │
+│  │ Side Panel │  │  Content   │  │ Background │       │
 │  │   (UI)     │  │  Script    │  │  Service   │       │
-│  │  v3.8.0    │  │  v5.1.0    │  │  v5.0.0    │       │
+│  │  v7.0.0    │  │  v5.1.0    │  │  v5.0.0    │       │
 │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘       │
 │        │               │               │               │
 │        │         ┌─────┴─────┐         │               │
 │        │         │ PDF       │         │               │
 │        │         │ Offscreen │         │               │
 │        │         │ v2.1.0    │         │               │
+│        │         │ (ES Mod.) │         │               │
 │        │         └───────────┘         │               │
+│        │                               │               │
+│        │         ┌──────────────┐      │               │
+│        │         │ Keep-Alive   │      │               │
+│        │         │  (15초 주기)  │      │               │
+│        │         │  v7.0.0      │      │               │
+│        │         └──────────────┘      │               │
 └────────┼───────────────┼───────────────┼──────────────┘
          │               │               │
          │        ┌──────┴───────┐       │
-         │        │ Keep-Alive   │       │
-         │        │  (15초 주기)  │       │
+         │        │ PDF Progress │       │
+         │        │  Messages    │       │
          │        └──────────────┘       │
          │                               │
          └───────────────┴───────────────┘
@@ -158,6 +168,53 @@
 │ Circuit │ │  -Store │ │         │ │         │
 │ Breaker │ │ -Tokens │ │         │ │         │
 └─────────┘ └─────────┘ └─────────┘ └─────────┘
+```
+
+### PDF 처리 플로우 (v7.0.0)
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                     PDF 추출 플로우                        │
+└───────────────────────────────────────────────────────────┘
+
+1. 사용자가 Side Panel에서 "요약하기" 클릭
+   │
+   ├─→ [Side Panel] PDF URL 감지
+   │
+   ├─→ [Side Panel] Keep-Alive 시작 (15초 주기 ping)
+   │
+   ├─→ [Side Panel] Background에 extractPDF 메시지 전송
+   │
+   └─→ [Background] 메시지 수신
+
+2. Background Service Worker 처리
+   │
+   ├─→ [Background] PDF 다운로드 시작 (fetch)
+   │   └─→ 진행 상황: 0% → 50% (다운로드 중)
+   │
+   ├─→ [Background] Offscreen Document 생성/활성화
+   │   └─→ 진행 상황: 50% → 55% (준비 중)
+   │
+   ├─→ [Background] Offscreen에 PDF 데이터 전송
+   │
+   └─→ [Offscreen] PDF.js로 텍스트 추출
+       ├─→ 진행 상황: 55% → 60% (분석 중)
+       ├─→ 진행 상황: 60% → 95% (페이지별 추출)
+       └─→ 진행 상황: 95% → 100% (정리 중)
+
+3. 결과 반환 및 Keep-Alive 종료
+   │
+   ├─→ [Offscreen] 추출 완료 → Background 전송
+   │
+   ├─→ [Background] pdfExtractionComplete 메시지 발송
+   │
+   ├─→ [Side Panel] 결과 수신 및 Keep-Alive 중지
+   │
+   └─→ [Side Panel] 텍스트 요약 진행
+
+※ 타임아웃: 180초 (ACK 10초 + 추출 180초)
+※ Keep-Alive: PDF 처리 중 Service Worker 유지
+※ 진행 상황: 실시간 UI 업데이트 (0% → 100%)
 ```
 
 ### Firebase Firestore 데이터 구조
@@ -257,40 +314,165 @@ firestore/
     └── createdAt: timestamp
 ```
 
-### Firestore 복합 인덱스
+## 📁 프로젝트 구조
 
-```json
-// firestore.indexes.json
-{
-  "indexes": [
-    {
-      "collectionGroup": "history",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "deletedAt", "order": "ASCENDING" },
-        { "fieldPath": "timestamp", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "daily",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "userId", "order": "ASCENDING" },
-        { "fieldPath": "date", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "tokens",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "token", "order": "ASCENDING" },
-        { "fieldPath": "type", "order": "ASCENDING" },
-        { "fieldPath": "used", "order": "ASCENDING" }
-      ]
-    }
-  ]
-}
+```
+summarygenie/
+├── docker-compose.yml          # Docker Compose 설정 (루트)
+├── package-lock.json           # NPM 패키지 잠금 파일 (루트)
+├── readme.md                   # 프로젝트 README (이 파일)
+├── SECURITY.md                 # 보안 가이드
+│
+├── extension/                  # Chrome Extension
+│   ├── manifest.json          # Extension 매니페스트 (v3, v2.3.1)
+│   ├── config.js              # 중앙 설정 파일
+│   ├── package-lock.json      # Extension NPM 패키지 잠금 파일
+│   │
+│   ├── auth.html              # 인증 페이지
+│   ├── auth.css               # 인증 페이지 스타일
+│   ├── auth.js                # 인증 로직
+│   │
+│   ├── firebase-app.js        # Firebase App SDK (v10.8.0)
+│   ├── firebase-auth.js       # Firebase Auth SDK (v10.8.0)
+│   │
+│   ├── sidepanel.html         # Side Panel HTML (v7.0) ✨
+│   ├── sidepanel.css          # 채팅 스타일 Q&A UI (v6.0) ✨
+│   ├── sidepanel.js           # Side Panel 로직 (v7.0.0, Keep-Alive) ✨
+│   │
+│   ├── options.html           # 설정 페이지 HTML
+│   ├── options.css            # 프리미엄 잠금 오버레이 (v2.3.0) ✨
+│   ├── options.js             # 설정 페이지 로직 (v2.3.0) ✨
+│   │
+│   ├── popup.html             # Popup HTML (레거시)
+│   ├── popup.css              # Popup 스타일
+│   ├── popup.js               # Popup 로직
+│   │
+│   ├── background.js          # Background Service Worker (v5.0.0)
+│   ├── content.js             # Content Script (v5.1.0)
+│   ├── content-styles.css     # Content Script 스타일
+│   ├── error-styles.css       # 에러 스타일
+│   │
+│   ├── pdf-extractor.js       # PDF 추출 로직 (v2.0.0, ES Module) ✨
+│   ├── pdf-offscreen.html     # Offscreen HTML (ES Module) ✨
+│   ├── pdf-offscreen-main.js  # Offscreen 메인 (v2.1.0, ping 처리) ✨
+│   │
+│   ├── _locales/              # 다국어 리소스
+│   │   ├── ko/messages.json   # 한국어
+│   │   ├── en/messages.json   # 영어
+│   │   ├── ja/messages.json   # 일본어
+│   │   └── zh/messages.json   # 중국어
+│   │
+│   ├── dashboard/             # 에러 대시보드
+│   │   └── error-dashboard.html
+│   │
+│   ├── icons/                 # 아이콘 파일들
+│   │   ├── icon16.png
+│   │   ├── icon48.png
+│   │   ├── icon128.png
+│   │   └── logo.png
+│   │
+│   ├── lib/                   # 라이브러리
+│   │   ├── pdf.mjs            # PDF.js (ES Module) ✨
+│   │   ├── pdf.mjs.map        # PDF.js Source Map
+│   │   ├── pdf.worker.mjs     # PDF.js Worker ✨
+│   │   ├── pdf.worker.mjs.map # Worker Source Map
+│   │   ├── pdf.sandbox.mjs    # PDF.js Sandbox ✨
+│   │   ├── pdf.sandbox.mjs.map # Sandbox Source Map
+│   │   └── cmaps/             # PDF.js 문자 맵 (CJK 지원)
+│   │       ├── 78-EUC-H.bcmap
+│   │       ├── Adobe-CNS1-*.bcmap
+│   │       ├── Adobe-GB1-*.bcmap
+│   │       ├── Adobe-Japan1-*.bcmap
+│   │       ├── Adobe-Korea1-*.bcmap
+│   │       ├── UniCNS-*.bcmap
+│   │       ├── UniGB-*.bcmap
+│   │       ├── UniJIS-*.bcmap
+│   │       ├── UniKS-*.bcmap
+│   │       └── ... (총 200+ cmap 파일)
+│   │
+│   └── modules/               # 핵심 모듈
+│       ├── api-client.js      # API 클라이언트 (레거시)
+│       ├── api-service.js     # API 호출 (v6.2.0)
+│       ├── auth-manager.js    # 인증 관리 (v4.0.0)
+│       ├── error-handler.js   # 에러 핸들러
+│       ├── history-manager.js # 히스토리 관리
+│       ├── i18n-manager.js    # 국제화 관리 (신규) ✨
+│       ├── language-manager.js # 다국어 관리 (v6.0.0)
+│       ├── qa-manager.js      # Q&A 관리 ✨
+│       ├── security.js        # 보안 유틸리티
+│       ├── settings-manager.js # 설정 관리
+│       ├── storage-manager.js # 스토리지 관리
+│       ├── sync-manager.js    # 동기화 관리
+│       ├── token-manager.js   # 토큰 관리
+│       ├── ui-components.js   # UI 컴포넌트
+│       ├── ui-manager.js      # UI 관리
+│       ├── usage-manager.js   # 사용량 관리
+│       └── utils.js           # 유틸리티
+│
+└── server/                    # Node.js Proxy Server
+    ├── .gitignore            # Git 제외 파일 목록 (보안 중요!)
+    ├── .dockerignore         # Docker 제외 파일 목록
+    ├── .gcloudignore         # Google Cloud 제외 파일 목록
+    ├── .firebaserc           # Firebase 프로젝트 설정
+    ├── Dockerfile            # Docker 이미지 빌드 설정
+    ├── docker-compose.yml    # Docker Compose 설정 (서버용)
+    ├── package.json          # 서버 의존성
+    ├── package-lock.json     # 서버 패키지 잠금 파일
+    ├── .env                  # 환경 변수 (보안!) ⚠️ Git 제외 필수
+    ├── serviceAccountKey.json # Firebase 서비스 계정 키 (보안!) ⚠️ Git 제외 필수
+    ├── user-db.js            # 사용자 데이터베이스 (개발용)
+    │
+    ├── firebase.json         # Firebase 설정
+    ├── firestore.rules       # Firestore 보안 규칙
+    ├── firestore.indexes.json # Firestore 인덱스
+    │
+    ├── scripts/              # 유틸리티 스크립트
+    │   └── firebase-init.js  # Firebase 초기화 스크립트
+    │
+    └── src/
+        ├── server.js         # 메인 서버 파일 (Cloud Run 최적화)
+        ├── app.js            # Express 앱 설정
+        │
+        ├── config/
+        │   └── firebase.js   # Firebase Admin 초기화
+        │
+        ├── constants/
+        │   └── index.js      # 전역 상수 정의
+        │
+        ├── routes/
+        │   ├── index.js      # 메인 라우터
+        │   └── api/
+        │       ├── auth.js   # 인증 API (v3.0.0)
+        │       ├── chat.js   # 채팅/요약 API
+        │       ├── usage.js  # 사용량 조회 API
+        │       └── history.js # 히스토리 관리 API
+        │
+        ├── middleware/
+        │   ├── auth.js       # JWT 인증 미들웨어 (v3.0.0)
+        │   ├── errorHandler.js # 에러 핸들러 (v2.0.0)
+        │   ├── rateLimiter.js # Rate Limiting (v1.0.0)
+        │   └── validator.js  # 입력 검증 (v2.2.0)
+        │
+        ├── services/
+        │   ├── AuthService.js     # Firebase Auth 서비스 (v3.0.0)
+        │   ├── EmailService.js    # 이메일 발송 서비스
+        │   ├── TokenService.js    # 토큰 관리 서비스
+        │   ├── UsageService.js    # 사용량 추적 (v2.1.0)
+        │   └── HistoryService.js  # 히스토리 관리
+        │
+        ├── tests/            # 테스트 파일
+        │   └── password.test.js # 비밀번호 유틸리티 테스트
+        │
+        └── utils/            # 유틸리티
+            ├── jwt.js        # JWT 토큰 유틸리티
+            ├── password.js   # 비밀번호 해싱 유틸리티
+            ├── password-README.md # 비밀번호 유틸리티 가이드
+            └── tokenUtils.js # 토큰 생성 유틸리티
+
+⚠️ 주의사항:
+- .env, serviceAccountKey.json은 절대 Git에 커밋하지 마세요!
+- 모든 보안 관련 파일은 .gitignore에 포함되어 있는지 확인하세요.
+- 문서 파일들은 루트의 SECURITY.md와 프로젝트 문서를 참조하세요.
 ```
 
 ## 📦 설치 및 실행
@@ -435,64 +617,7 @@ firebase init firestore
 firebase deploy --only firestore:rules,firestore:indexes
 ```
 
-`firestore.rules` 파일 예시:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // 사용자 문서
-    match /users/{userId} {
-      // 본인만 읽기/쓰기 가능
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if request.auth != null && request.auth.uid == userId;
-      
-      // 히스토리 서브컬렉션
-      match /history/{historyId} {
-        allow read: if request.auth != null && 
-                      request.auth.uid == userId && 
-                      request.auth.token.email_verified == true;
-        allow create: if request.auth != null && 
-                        request.auth.uid == userId &&
-                        request.auth.token.email_verified == true;
-        allow update, delete: if request.auth != null && 
-                                 request.auth.uid == userId;
-      }
-      
-      // 일일 사용량 서브컬렉션
-      match /daily/{date} {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        allow write: if false; // 서버에서만 쓰기
-      }
-      
-      // 토큰 서브컬렉션 (서버에서만 접근)
-      match /tokens/{tokenId} {
-        allow read, write: if false; // Admin SDK에서만
-      }
-    }
-    
-    // 구독 정보 (읽기만 허용, 쓰기는 서버에서만)
-    match /subscriptions/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow write: if false; // Admin SDK에서만
-    }
-    
-    // 사용량 히스토리 (서버에서만)
-    match /usageHistory/{usageId} {
-      allow read: if false;
-      allow write: if false; // Admin SDK에서만
-    }
-  }
-}
-```
-
-#### 3.4. Gmail 앱 비밀번호 생성 (이메일 발송용)
-
-1. Google 계정 → 보안 설정
-2. "앱 비밀번호" 생성 (2단계 인증 필요)
-3. `.env` 파일의 `EMAIL_PASSWORD`에 입력
-
-#### 3.5. 서버 실행
+#### 3.4. 서버 실행
 
 ```bash
 # 개발 모드 (nodemon)
@@ -504,8 +629,6 @@ npm start
 # 헬스체크
 curl http://localhost:3000/health
 ```
-
-서버가 `http://localhost:3000`에서 실행됩니다.
 
 ### 4. Chrome Extension 설정
 
@@ -528,8 +651,6 @@ CONFIG.FIREBASE = {
 CONFIG.API_ENDPOINTS.DEV = "http://localhost:3000";
 CONFIG.API_ENDPOINTS.PROD = "https://your-server-url.run.app";
 ```
-
-Firebase 설정 값은 Firebase Console → 프로젝트 설정 → 일반에서 확인할 수 있습니다.
 
 #### 4.2. Chrome Extension 로드
 
@@ -567,143 +688,14 @@ curl http://localhost:3000/health
 }
 ```
 
-#### 5.2. 이메일 발송 테스트
+#### 5.2. Extension 테스트
 
-```bash
-# 이메일 서비스 연결 테스트
-node -e "
-const emailService = require('./src/services/EmailService');
-emailService.testConnection().then(result => {
-  console.log('이메일 테스트:', result ? '성공' : '실패');
-});
-"
-```
-
-#### 5.3. API 테스트
-
-```bash
-# 회원가입
-curl -X POST http://localhost:3000/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "Test1234!",
-    "confirmPassword": "Test1234!",
-    "name": "Test User"
-  }'
-
-# 비밀번호 재설정 요청
-curl -X POST http://localhost:3000/api/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com"
-  }'
-```
-
-#### 5.4. Extension 테스트
-
-1. Chrome Extension 아이콘 클릭
+1. Chrome Extension 아이콘 클릭 → Side Panel 열림
 2. "회원가입" 또는 "로그인"
 3. 이메일 인증 링크 확인 (Gmail)
 4. 웹페이지에서 요약 기능 테스트
-5. 서버 로그 확인
-
-```bash
-# 서버 로그에서 확인할 것
-[Auth Signup] 회원가입 시도: test@example.com
-✅ Firebase Auth 사용자 생성: abc123uid
-✅ Firestore 프로필 생성: abc123uid
-✅ 이메일 발송 성공: test@example.com - 이메일 인증을 완료해주세요
-✅ [Auth Signup] 회원가입 성공: test@example.com (UID: abc123uid)
-```
-
-## 📁 프로젝트 구조
-
-```
-summarygenie/
-├── extension/                   # Chrome Extension
-│   ├── manifest.json           # Extension 매니페스트 (v3)
-│   ├── config.js               # 중앙 설정 파일
-│   ├── auth.html               # 인증 페이지
-│   ├── auth.js                 # 인증 로직
-│   ├── firebase-app.js         # Firebase App SDK (v10.8.0)
-│   ├── firebase-auth.js        # Firebase Auth SDK (v10.8.0)
-│   ├── popup/                  # 팝업 UI
-│   │   ├── popup.html
-│   │   ├── popup.css
-│   │   └── popup.js
-│   ├── sidepanel/              # Side Panel UI
-│   ├── background/             # Background Service Worker
-│   │   └── background.js
-│   ├── content/                # Content Scripts
-│   │   └── content.js
-│   ├── modules/                # 핵심 모듈
-│   │   ├── api-service.js     # API 호출 (v6.2.0)
-│   │   ├── auth-manager.js    # 인증 관리 (v4.0.0)
-│   │   ├── i18n-manager.js    # 다국어 (v6.0.0)
-│   │   └── ...
-│   ├── _locales/               # 다국어 리소스
-│   │   ├── ko/
-│   │   ├── en/
-│   │   ├── ja/
-│   │   └── zh/
-│   └── lib/                    # 라이브러리
-│       └── pdf.mjs             # PDF.js
-│
-├── server/                     # Node.js Proxy Server
-│   ├── .gitignore             # Git 제외 파일 목록 (보안 중요!) 🆕
-│   ├── docker-compose.yml     # Docker Compose 설정 🆕
-│   ├── Dockerfile             # Docker 이미지 빌드 설정 🆕
-│   ├── .dockerignore          # Docker 제외 파일 목록 🆕
-│   ├── src/
-│   │   ├── server.js          # 메인 서버 파일 (Cloud Run 최적화)
-│   │   ├── app.js             # Express 앱 설정
-│   │   ├── config/
-│   │   │   └── firebase.js    # Firebase Admin 초기화
-│   │   ├── constants/
-│   │   │   └── index.js       # 전역 상수 정의
-│   │   ├── routes/
-│   │   │   ├── index.js       # 메인 라우터
-│   │   │   └── api/
-│   │   │       ├── auth.js    # 인증 API (v3.0.0)
-│   │   │       ├── chat.js    # 채팅/요약 API
-│   │   │       ├── usage.js   # 사용량 조회 API
-│   │   │       └── history.js # 히스토리 관리 API
-│   │   ├── controllers/       # 비즈니스 로직
-│   │   ├── middleware/
-│   │   │   ├── auth.js        # JWT 인증 미들웨어 (v3.0.0)
-│   │   │   ├── errorHandler.js # 에러 핸들러 (v2.0.0)
-│   │   │   ├── rateLimiter.js  # Rate Limiting (v1.0.0)
-│   │   │   └── validator.js    # 입력 검증 (v2.2.0)
-│   │   ├── services/
-│   │   │   ├── AuthService.js      # Firebase Auth 서비스 (v3.0.0)
-│   │   │   ├── EmailService.js     # 이메일 발송 서비스 🆕
-│   │   │   ├── TokenService.js     # 토큰 관리 서비스 🆕
-│   │   │   ├── UsageService.js     # 사용량 추적 (v2.1.0)
-│   │   │   └── HistoryService.js   # 히스토리 관리
-│   │   ├── utils/             # 유틸리티
-│   │   │   ├── jwt.js         # JWT 토큰 유틸리티 🆕
-│   │   │   ├── password.js    # 비밀번호 해싱 유틸리티 🆕
-│   │   │   └── tokenUtils.js  # 토큰 생성 유틸리티 🆕
-│   │   └── tests/             # 테스트 코드
-│   │       └── password.test.js # 비밀번호 테스트 🆕
-│   ├── scripts/
-│   │   └── firebase-init.js   # Firebase 초기화 스크립트
-│   ├── serviceAccountKey.json # Firebase 서비스 계정 키 (보안!)
-│   ├── package.json
-│   ├── firebase.json          # Firebase 설정
-│   ├── firestore.rules        # Firestore 보안 규칙
-│   ├── firestore.indexes.json # Firestore 인덱스
-│   └── .env                   # 환경 변수 (보안!)
-│
-└── docs/                       # 문서
-    ├── 기획서.md
-    ├── 로드맵.md
-    ├── firebase-setup.md
-    ├── password-README.md     # 비밀번호 유틸리티 문서 🆕
-    ├── SECURITY.md            # 보안 가이드 🆕
-    └── api.md
-```
+5. PDF 파일 열고 요약 테스트 (진행 상황 UI 확인)
+6. 서버 로그 확인
 
 ## 🌐 API 엔드포인트
 
@@ -723,44 +715,12 @@ POST   /api/auth/logout              - 로그아웃
 GET    /api/auth/me                  - 현재 사용자 정보 조회
 PUT    /api/auth/profile             - 프로필 업데이트
 POST   /api/auth/change-password     - 비밀번호 변경
-POST   /api/auth/forgot-password     - 비밀번호 재설정 요청 (이메일 발송) 🆕
-POST   /api/auth/reset-password      - 비밀번호 재설정 완료 🆕
+POST   /api/auth/forgot-password     - 비밀번호 재설정 요청 (이메일 발송)
+POST   /api/auth/reset-password      - 비밀번호 재설정 완료
 POST   /api/auth/verify-email        - 이메일 인증 확인
 POST   /api/auth/resend-verification - 인증 이메일 재발송
 POST   /api/auth/google-signin       - Google OAuth 로그인
 DELETE /api/auth/account             - 계정 삭제
-```
-
-**비밀번호 재설정 플로우 예시:**
-
-```bash
-# 1. 비밀번호 재설정 요청
-curl -X POST http://localhost:3000/api/auth/forgot-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com"
-  }'
-
-# 응답:
-{
-  "success": true,
-  "message": "비밀번호 재설정 링크를 이메일로 전송했습니다"
-}
-
-# 2. 이메일에서 받은 토큰으로 비밀번호 재설정
-curl -X POST http://localhost:3000/api/auth/reset-password \
-  -H "Content-Type: application/json" \
-  -d '{
-    "token": "abc123token456",
-    "newPassword": "NewP@ss123",
-    "confirmPassword": "NewP@ss123"
-  }'
-
-# 응답:
-{
-  "success": true,
-  "message": "비밀번호가 성공적으로 변경되었습니다"
-}
 ```
 
 ### 채팅/요약 API (`/api/chat`)
@@ -768,27 +728,6 @@ curl -X POST http://localhost:3000/api/auth/reset-password \
 ```
 POST /api/chat                  - 채팅/요약 요청 (OpenAI API)
 GET  /api/chat/circuit-breaker  - Circuit Breaker 상태 조회
-```
-
-**요청 예시:**
-
-```bash
-curl -X POST http://localhost:3000/api/chat \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "messages": [
-      {
-        "role": "user",
-        "content": "이 기사를 요약해주세요: [기사 내용...]"
-      }
-    ],
-    "title": "뉴스 기사 제목",
-    "url": "https://example.com/article",
-    "language": "ko",
-    "saveHistory": true,
-    "isPDF": false
-  }'
 ```
 
 ### 사용량 조회 API (`/api/usage`)
@@ -812,160 +751,14 @@ POST   /api/history/:historyId/qa  - Q&A 추가
 DELETE /api/history/:historyId     - 히스토리 삭제 (soft/hard)
 ```
 
-## 🔧 핵심 모듈 및 서비스
-
-### 1. AuthService (`src/services/AuthService.js`) 🆕
-
-Firebase Authentication 기반 인증 서비스
-
-```javascript
-const authService = require('./services/AuthService');
-
-// 회원가입 (Firebase Auth + 이메일 발송)
-const result = await authService.signup(
-  'user@example.com',
-  'SecureP@ss123',
-  'John Doe'
-);
-
-// Firebase ID Token 검증
-const decodedToken = await authService.verifyIdToken(idToken);
-
-// 사용자 조회
-const user = await authService.getUserById('user123');
-
-// 프로필 업데이트
-const updatedUser = await authService.updateProfile('user123', {
-  name: 'Jane Doe',
-  isPremium: true
-});
-```
-
-### 2. EmailService (`src/services/EmailService.js`) 🆕
-
-Nodemailer 기반 이메일 발송 서비스
-
-```javascript
-const emailService = require('./services/EmailService');
-
-// 회원가입 환영 이메일
-await emailService.sendWelcomeEmail('user@example.com', 'John Doe');
-
-// 이메일 인증 링크 발송
-await emailService.sendVerificationEmail(
-  'user@example.com',
-  'John Doe',
-  'abc123token'
-);
-
-// 비밀번호 재설정 링크 발송
-await emailService.sendPasswordResetEmail(
-  'user@example.com',
-  'John Doe',
-  'xyz789token'
-);
-```
-
-### 3. TokenService (`src/services/TokenService.js`) 🆕
-
-Firestore 기반 토큰 관리 서비스
-
-```javascript
-const { tokenService, TOKEN_TYPES } = require('./services/TokenService');
-
-// 토큰 저장
-const tokenId = await tokenService.saveToken(
-  'user123',
-  'hashed_token_abc123',
-  TOKEN_TYPES.PASSWORD_RESET,
-  15 * 60 * 1000  // 15분
-);
-
-// 토큰 검증
-const token = await tokenService.verifyAndGetToken(
-  'user123',
-  'hashed_token_abc123',
-  TOKEN_TYPES.PASSWORD_RESET
-);
-```
-
-### 4. Password Utility (`src/utils/password.js`) 🆕
-
-bcrypt 기반 비밀번호 해싱 및 검증
-
-```javascript
-const {
-  hashPassword,
-  comparePassword,
-  validatePasswordStrength
-} = require('./utils/password');
-
-// 비밀번호 해싱
-const hashedPassword = await hashPassword('MySecureP@ss123');
-
-// 비밀번호 비교
-const isMatch = await comparePassword('MySecureP@ss123', hashedPassword);
-
-// 비밀번호 강도 검증
-const result = validatePasswordStrength('MyP@ss123');
-```
-
-## 👨‍💻 개발 가이드
-
-### 코드 스타일
-
-- **변수명**: camelCase (`userId`, `isPremium`)
-- **상수명**: UPPER_SNAKE_CASE (`FREE_USER_DAILY_LIMIT`)
-- **클래스명**: PascalCase (`CircuitBreaker`, `UsageService`)
-- **파일명**: kebab-case (`auth-service.js`) 또는 PascalCase (`AuthService.js`)
-
-### Firestore 데이터 작업
-
-#### 데이터 생성
-
-```javascript
-const db = getFirestore();
-
-// 단일 문서 생성
-await db.collection('users').doc(userId).set({
-  email: 'user@example.com',
-  name: 'John Doe',
-  isPremium: false,
-  createdAt: admin.firestore.FieldValue.serverTimestamp()
-});
-
-// 배치 작업 (원자성 보장)
-const batch = db.batch();
-const userRef = db.collection('users').doc(userId);
-batch.set(userRef, userData);
-await batch.commit();
-```
-
-#### 트랜잭션
-
-```javascript
-await db.runTransaction(async (transaction) => {
-  const subscriptionRef = db.collection('subscriptions').doc(userId);
-  const subscriptionDoc = await transaction.get(subscriptionRef);
-  
-  const newCount = subscriptionDoc.data().usage.summaries + 1;
-  
-  transaction.update(subscriptionRef, {
-    'usage.summaries': newCount,
-    'updatedAt': admin.firestore.FieldValue.serverTimestamp()
-  });
-});
-```
-
 ## 🚀 배포
 
-### Docker Compose 배포 (권장 - 로컬/개발) 🆕
+### Docker Compose 배포 (권장 - 로컬/개발)
 
 #### 1. Docker Compose 설정 확인
 
-프로젝트에 포함된 `docker-compose.yml` 파일을 사용합니다:
-
 ```yaml
+# docker-compose.yml
 version: '3.8'
 
 services:
@@ -990,84 +783,46 @@ services:
 
 #### 2. 환경 변수 설정
 
-`.env` 파일이 준비되었는지 확인:
-
 ```bash
-# .env.example을 복사
 cp .env.example .env
-
-# 필수 환경변수 설정
-nano .env  # 또는 원하는 편집기 사용
+nano .env  # 필수 환경변수 설정
 ```
 
 #### 3. Docker Compose 실행
 
 ```bash
-# 서비스 빌드 및 시작 (백그라운드)
+# 서비스 빌드 및 시작
 docker-compose up -d --build
 
 # 로그 확인
 docker-compose logs -f
 
-# 환경변수 확인
-docker-compose exec app env | grep FREE_USER_DAILY_LIMIT
-
-# 헬스체크 확인
+# 헬스체크
 curl http://localhost:3000/health
 
 # 서비스 중지
 docker-compose down
-
-# 볼륨까지 모두 제거
-docker-compose down -v
-```
-
-#### 4. 트러블슈팅
-
-```bash
-# 컨테이너 내부 접속
-docker-compose exec app sh
-
-# 로그 파일 확인
-docker-compose exec app tail -f /app/logs/combined.log
-
-# 서비스 재시작
-docker-compose restart
-
-# 특정 서비스만 재빌드
-docker-compose up -d --build app
 ```
 
 ### Cloud Run 배포 (프로덕션)
 
-#### 1. Google Cloud 프로젝트 설정
-
-```bash
-# Google Cloud SDK 설치
-# https://cloud.google.com/sdk/docs/install
-
-# 프로젝트 설정
-gcloud config set project your-project-id
-gcloud config set run/region asia-northeast3
-```
-
-#### 2. Docker 이미지 빌드
+#### 1. Docker 이미지 빌드
 
 ```bash
 cd server
 
 # 이미지 빌드
-docker build -t gcr.io/your-project-id/summarygenie-server:v2.5.0 .
+docker build -t gcr.io/your-project-id/summarygenie-server:v2.7.0 .
 
 # Container Registry에 푸시
-docker push gcr.io/your-project-id/summarygenie-server:v2.5.0
+docker push gcr.io/your-project-id/summarygenie-server:v2.7.0
 ```
 
-#### 3. Cloud Run 배포
+#### 2. Cloud Run 배포
 
 ```bash
 gcloud run deploy summarygenie-server \
-  --image gcr.io/your-project-id/summarygenie-server:v2.5.0 \
+  --image gcr.io/your-project-id/summarygenie-server:v2.7.0 \
   --platform managed \
   --region asia-northeast3 \
   --allow-unauthenticated \
@@ -1077,48 +832,12 @@ gcloud run deploy summarygenie-server \
   --min-instances 0 \
   --max-instances 10 \
   --set-env-vars "NODE_ENV=production,FREE_USER_DAILY_LIMIT=3,PORT=3000" \
-  --set-secrets "OPENAI_API_KEY=openai-api-key:latest,JWT_SECRET=jwt-secret:latest,EMAIL_PASSWORD=email-password:latest"
-```
-
-#### 4. Secret Manager 설정
-
-```bash
-# 시크릿 생성
-echo -n "your-openai-key" | gcloud secrets create openai-api-key --data-file=-
-echo -n "your-jwt-secret" | gcloud secrets create jwt-secret --data-file=-
-echo -n "your-gmail-app-password" | gcloud secrets create email-password --data-file=-
-
-# Cloud Run 서비스에 권한 부여
-PROJECT_NUMBER=$(gcloud projects describe your-project-id --format="value(projectNumber)")
-
-gcloud secrets add-iam-policy-binding openai-api-key \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-```
-
-### Vercel 배포 (대안)
-
-```bash
-# Vercel CLI 설치
-npm i -g vercel
-
-# 프로젝트 배포
-cd server
-vercel
-
-# 환경 변수 설정
-vercel env add OPENAI_API_KEY
-vercel env add JWT_SECRET
-vercel env add FIREBASE_PROJECT_ID
-# ... 기타 환경 변수
-
-# 프로덕션 배포
-vercel --prod
+  --set-secrets "OPENAI_API_KEY=openai-api-key:latest,JWT_SECRET=jwt-secret:latest"
 ```
 
 ## 🔐 보안 및 인증
 
-⚠️ **중요**: 상세한 보안 가이드는 [`SECURITY.md`](docs/SECURITY.md) 파일을 참조하세요.
+⚠️ **중요**: 상세한 보안 가이드는 `SECURITY.md` 파일을 참조하세요.
 
 ### 보안 체크리스트
 
@@ -1127,7 +846,6 @@ vercel --prod
 - [x] `.env.example` 파일에 실제 키가 없음
 - [x] 모든 시크릿이 강력한 랜덤 값임
 - [x] 코드에 하드코딩된 시크릿이 없음
-- [x] Git 히스토리에 시크릿이 없음
 - [x] `serviceAccountKey.json`이 Git에서 제외됨
 
 #### 배포 단계
@@ -1154,74 +872,6 @@ vercel --prod
    - 서버: `authenticate` 미들웨어로 토큰 검증
    - `req.user`에 사용자 정보 저장
 
-### 비밀번호 보안
-
-#### bcrypt 설정
-
-```javascript
-// constants/index.js
-PASSWORD: {
-  SALT_ROUNDS: 10,        // Salt rounds (기본값)
-  MIN_LENGTH: 8,          // 최소 길이
-  MAX_LENGTH: 128,        // 최대 길이
-  HASH_COST: 10           // bcrypt 비용 (= SALT_ROUNDS)
-}
-```
-
-#### 비밀번호 정책
-
-**필수 요구사항:**
-- ✅ 최소 8자 이상
-- ✅ 대문자 포함
-- ✅ 소문자 포함
-- ✅ 숫자 포함
-
-**권장사항:**
-- 💡 특수문자 포함
-- 💡 12자 이상
-
-### .gitignore 설정 🆕
-
-프로젝트의 `.gitignore` 파일에는 다음 항목들이 포함되어 있습니다:
-
-```gitignore
-# 환경변수 및 민감 정보
-.env
-.env.local
-.env.*.local
-serviceAccountKey.json
-*-serviceAccountKey.json
-firebase-adminsdk-*.json
-
-# Node.js
-node_modules/
-npm-debug.log*
-
-# 로그 파일
-*.log
-logs/
-
-# 운영체제
-.DS_Store
-Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-```
-
-⚠️ **민감 정보가 Git에 커밋되지 않도록 주의하세요!**
-
-### 환경 변수 보안
-
-```bash
-# 강력한 랜덤 키 생성
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-
-# 환경 변수 권한 설정 (Unix/Linux/Mac)
-chmod 600 .env
-```
-
 ## ⚠️ 에러 처리
 
 ### 에러 응답 형식
@@ -1246,7 +896,8 @@ chmod 600 .env
 | `PERMISSION_DENIED` | 권한이 없습니다 | 403 |
 | `USAGE_LIMIT_EXCEEDED` | 사용 한도 초과 | 403 |
 | `RATE_LIMIT_EXCEEDED` | 요청 속도 제한 초과 | 429 |
-| `PASSWORD_TOO_SHORT` | 비밀번호가 너무 짧습니다 | 400 |
+| `PDF_EXTRACTION_TIMEOUT` | PDF 추출 타임아웃 (180초) | 408 |
+| `SERVICE_WORKER_UNAVAILABLE` | Service Worker 응답 없음 | 503 |
 
 ## 📊 모니터링
 
@@ -1278,7 +929,9 @@ curl http://localhost:3000/health
 - [x] Q&A 기능
 - [x] 로컬 히스토리
 - [x] 다국어 지원 (4개 언어)
-- [x] PDF 추출 기능
+- [x] PDF 추출 기능 (ES Module, 180초 타임아웃)
+- [x] Side Panel UI (v7.0.0)
+- [x] Keep-Alive 구현 (v7.0.0)
 
 ### Phase 2: 서버 인프라 (완료 ✅)
 - [x] Firebase Firestore 연동
@@ -1286,14 +939,16 @@ curl http://localhost:3000/health
 - [x] 클라우드 동기화
 - [x] PDF 요약 (프리미엄 전용)
 - [x] Circuit Breaker 구현
+- [x] PDF 진행 상황 UI (v7.0.0)
 
 ### Phase 3: 사용자 시스템 (완료 ✅)
 - [x] 인증 시스템 (Firebase Auth)
 - [x] 사용자 대시보드
 - [x] 무료 티어 (일 3회)
-- [x] 이메일 발송 서비스 🆕
-- [x] 비밀번호 재설정 🆕
-- [x] 비밀번호 보안 강화 🆕
+- [x] 이메일 발송 서비스
+- [x] 비밀번호 재설정
+- [x] 비밀번호 보안 강화
+- [x] 프리미엄 기능 잠금 UI (v2.3.0)
 - [ ] 추천 시스템
 
 ### Phase 4: 결제 시스템 (진행 중 🚧)
@@ -1313,35 +968,39 @@ curl http://localhost:3000/health
 - [ ] 마케팅 준비
 - [ ] 초기 사용자 피드백
 
-## 🆕 최신 업데이트 (v2.5.0)
+## 🆕 최신 업데이트 (v2.7.0)
 
-### Firebase & 보안 강화
-- ✨ **AuthService**: Firebase Auth 완전 전환
-- ✨ **EmailService**: Nodemailer 기반 이메일 발송
-- ✨ **TokenService**: Firestore 토큰 관리
-- ✨ **Password Utility**: bcrypt 해싱 및 검증
-- ✨ **JWT Utility**: 토큰 생성 및 검증
+### Side Panel & PDF 처리 강화
+- ✨ **Side Panel v7.0.0**: Keep-Alive 구현으로 PDF 처리 안정성 향상
+- ✨ **PDF 진행 상황 UI**: 실시간 추출 진행률 표시 (0% → 100%)
+- ✨ **PDF Offscreen v2.1.0**: ping 메시지 처리 추가
+- ✨ **PDF Extractor v2.0.0**: ES Module 기반 동적 import
+- ✨ **Service Worker Keep-Alive**: 15초 주기 ping으로 타임아웃 방지
 
-### 이메일 기능
-- ✨ 회원가입 환영 이메일
-- ✨ 이메일 인증 링크
-- ✨ 비밀번호 재설정
-- ✨ 보안 알림
+### Options 페이지 개선
+- ✨ **프리미엄 잠금 UI (v2.3.0)**: 히스토리 섹션 오버레이
+- ✨ **구독 UI 동적 변경**: 프리미엄 상태에 따른 UI 업데이트
+- ✨ **언어 변경 시 UI 업데이트**: 오버레이 텍스트 즉시 반영
 
-### Docker & 배포
-- ✨ **Docker Compose**: 로컬 개발 환경 구성 🆕
-- ✨ **Dockerfile**: 프로덕션 최적화 🆕
-- ✨ **Cloud Run**: GCP 배포 가이드
-- ✨ **.gitignore**: 보안 파일 제외 설정 🆕
+### 사용자 경험 개선
+- ✨ **콘텐츠 길이 기반 자동 최적화**: 요약 길이 자동 판단 (v6.0)
+- ✨ **채팅 스타일 Q&A UI (v5.0)**: 말풍선 형태의 대화형 인터페이스
+- ✨ **실시간 사용량 업데이트**: Storage 리스너 기반
+- ✨ **프리미엄 기능 모달**: 한도 초과 시 업그레이드 안내
 
-### 보안 강화
-- ✨ **SECURITY.md**: 상세한 보안 가이드 추가 🆕
-- ✨ **환경변수 관리**: Secret Manager 통합
-- ✨ **비밀번호 정책**: 강도 검증 및 해싱
+### 기술적 개선
+- ✨ **타임아웃 통일**: PDF 추출 180초로 통일
+- ✨ **에러 처리 강화**: Service Worker 응답 없음 감지
+- ✨ **진행 상황 메시징**: pdfProgress 이벤트 시스템
 
 ## 🐛 알려진 이슈
 
-### v2.5.0
+### v2.7.0
+- [ ] PDF 추출 타임아웃 시 Keep-Alive 정리 확인 필요
+- [ ] Service Worker 응답 없음 시 재시도 로직 개선 필요
+- [ ] PDF 진행 상황 UI 모바일 대응 필요
+
+### v2.3.0
 - [ ] SendGrid 이메일 전송 테스트 필요
 - [ ] 이메일 템플릿 국제화
 - [ ] PDF 특수 문자 처리 개선
@@ -1379,7 +1038,7 @@ curl http://localhost:3000/health
 - **OpenAI** - GPT-4o-mini API
 - **Google Firebase** - Firestore, Auth
 - **Chrome Extensions** - 플랫폼
-- **Mozilla PDF.js** - PDF 처리
+- **Mozilla PDF.js** - PDF 처리 (ES Module)
 - **Material Design** - UI 디자인
 - **Stripe** - 결제 인프라
 - **Nodemailer** - 이메일 발송
@@ -1388,17 +1047,12 @@ curl http://localhost:3000/health
 
 ## 📚 추가 자료
 
-- [개발 로드맵](docs/로드맵.md)
-- [기획서](docs/기획서.md)
-- [Firebase 설정 가이드](docs/firebase-setup.md)
-- [**보안 가이드**](docs/SECURITY.md) 🆕
-- [비밀번호 유틸리티 가이드](docs/password-README.md)
-- [API 문서](docs/api.md)
-- [에러 처리 가이드](docs/error-handling.md)
-- [배포 가이드](docs/deployment.md)
+- [보안 가이드](SECURITY.md)
+- [기획서](__AI_웹페이지_요약봇_크롬_확장프로그램_기획서)
+- [개발 로드맵](__SummaryGenie_개발_로드맵_ver_2.0)
 
 ---
 
-**Made with by SummaryGenie Team**
+**Made with ❤️ by SummaryGenie Team**
 
-**Version**: 2.5.0 | **Last Updated**: 2025-11-11
+**Version**: 2.7.0 | **Last Updated**: 2025-11-11

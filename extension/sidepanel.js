@@ -7,6 +7,7 @@
  * - PDF 타임아웃 180초로 통일
  * - Service Worker Keep-Alive 구현 (15초 주기)
  * - PDF 진행 상황 실시간 UI 업데이트
+ * - 페이드인 효과로 깜빡임 방지
  *
  * @version 7.0.0
  */
@@ -58,6 +59,9 @@ class SidePanelController {
       if (!isAuthenticated) {
         console.log('[Auth] 로그인 필요 - 안내 화면 표시');
         this.showLoginRequiredScreen();
+        
+        // ✅ 로그인 화면도 페이드인
+        document.body.classList.add('loaded');
         return;
       }
 
@@ -84,11 +88,17 @@ class SidePanelController {
       this.initialized = true;
       console.log('[SidePanel] 초기화 완료');
 
+      // ✅ 깜빡임 방지: 초기화 완료 후 페이드인
+      document.body.classList.add('loaded');
+
       await this.checkAutoSummarize();
     } catch (error) {
       console.error('[SidePanel] 초기화 오류:', error);
       window.errorHandler.handle(error, 'sidepanel-initialization');
       this.showError('initializationError');
+      
+      // ✅ 에러 발생 시에도 페이지 표시
+      document.body.classList.add('loaded');
     }
   }
 

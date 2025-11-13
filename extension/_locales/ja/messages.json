@@ -709,6 +709,36 @@
 },
 "questionPrompt": {
   "message": "質問:"
-}
+},
+"currentPage": {
+    "message": "現在のページ"
+  },
+  "closePanel": {
+    "message": "パネルを閉じる"
+  },
+  "sidePanelInfo": {
+    "message": "要約結果は右側のサイドパネルに表示されます"
+  },
+  "pdfProcessing": {
+    "message": "PDF処理中..."
+  },
+  "pdfPreparing": {
+    "message": "準備中..."
+  },
+  "pdfDownloading": {
+    "message": "PDFダウンロード中..."
+  },
+  "pdfExtracting": {
+    "message": "テキスト抽出中..."
+  },
+  "pdfAnalyzing": {
+    "message": "PDF分析中..."
+  },
+  "pdfCompleting": {
+    "message": "完了中..."
+  },
+  "loadingUsage": {
+    "message": "使用量を確認中..."
+  }
 
 }

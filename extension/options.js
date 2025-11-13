@@ -1,6 +1,7 @@
 ﻿/**
  * SummaryGenie 옵션 페이지 스크립트 (웹 개선 버전)
  * UI 표시 및 사용자 인터랙션 담당
+ * v2.3.0 - 깜빡임 방지 적용
  * 
  * 전역 방식: 모든 모듈은 window 객체에 이미 노출되어 있습니다.
  * 
@@ -9,6 +10,7 @@
  * - 구독 상태에 따라 구독 섹션 UI 동적 변경
  * - 완전한 다국어 지원
  * - 언어 변경 시 히스토리 오버레이 및 구독 UI 텍스트 즉시 업데이트
+ * - 깜빡임 방지 적용
  */
 
 // 전역 객체 사용 확인 (디버깅용)
@@ -412,10 +414,17 @@ async function initialize() {
     });
     
     console.log('[Options] 초기화 완료');
+    
+    // ✅ 깜빡임 방지: 초기화 완료 후 페이드인
+    document.body.classList.add('loaded');
+    
   } catch (error) {
     console.error('[Options] 초기화 오류:', error);
     window.errorHandler.handle(error, 'options-initialization');
     showMessage(window.languageManager.getMessage('toastError'), 'error');
+    
+    // ✅ 에러 발생 시에도 페이지 표시
+    document.body.classList.add('loaded');
   }
 }
 

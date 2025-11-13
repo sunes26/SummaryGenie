@@ -1,5 +1,6 @@
 /**
  * 인증 페이지 UI 로직 및 이벤트 처리 (다국어 지원)
+ * v2.0.0 - 깜빡임 방지 적용
  * 
  * 의존성:
  * - config.js
@@ -66,32 +67,46 @@ const elements = {
  * 페이지 초기화
  */
 async function init() {
-  // I18n 초기화
-  await i18nManager.initialize();
-  
-  // 저장된 언어 설정 복원
-  const savedLocale = i18nManager.getCurrentLocale();
-  elements.languageSelect.value = savedLocale;
-  
-  // 페이지 텍스트 업데이트
-  updateAllText();
-  
-  // 이미 로그인되어 있는지 확인
-  const isLoggedIn = await authManager.isLoggedIn();
-  if (isLoggedIn) {
-    showLoginSuccessMessage();
-    return;
-  }
+  try {
+    // I18n 초기화
+    await i18nManager.initialize();
+    
+    // 저장된 언어 설정 복원
+    const savedLocale = i18nManager.getCurrentLocale();
+    elements.languageSelect.value = savedLocale;
+    
+    // 페이지 텍스트 업데이트
+    updateAllText();
+    
+    // 이미 로그인되어 있는지 확인
+    const isLoggedIn = await authManager.isLoggedIn();
+    if (isLoggedIn) {
+      showLoginSuccessMessage();
+      return;
+    }
 
-  // 이벤트 리스너 등록
-  setupEventListeners();
-  
-  // 비밀번호 표시/숨기기 기능 초기화
-  setupPasswordToggle();
+    // 이벤트 리스너 등록
+    setupEventListeners();
+    
+    // 비밀번호 표시/숨기기 기능 초기화
+    setupPasswordToggle();
 
-  // URL 해시 확인하여 회원가입 탭 자동 선택
-  if (window.location.hash === '#signup') {
-    switchTab('signup');
+    // URL 해시 확인하여 회원가입 탭 자동 선택
+    if (window.location.hash === '#signup') {
+      switchTab('signup');
+    }
+    
+    // ✅ 깜빡임 방지: 초기화 완료 후 페이드인
+    document.body.classList.add('loaded');
+    console.log('[Auth] 초기화 완료 - 페이드인');
+    
+  } catch (error) {
+    console.error('[Auth] 초기화 오류:', error);
+    
+    // ✅ 에러 발생 시에도 페이지 표시
+    document.body.classList.add('loaded');
+    
+    alert('초기화 오류가 발생했습니다. 페이지를 새로고침해주세요.');
   }
 }
 
@@ -189,6 +204,9 @@ function showLoginSuccessMessage() {
       </div>
     </div>
   `;
+
+  // ✅ 로그인 성공 화면도 페이드인
+  document.body.classList.add('loaded');
 
   const closeBtn = document.getElementById('closeTabBtn');
   closeBtn.addEventListener('click', () => {

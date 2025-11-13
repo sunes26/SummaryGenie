@@ -8,6 +8,7 @@
  * - 초기 로딩 시 정확한 값만 표시
  * - storage 리스너로 실시간 업데이트
  * - 프리미엄/무료 상태 즉시 반영
+ * - 페이드인 효과로 깜빡임 방지
  *
  * @version 3.9.0
  */
@@ -28,7 +29,7 @@ class AppController {
     };
     this.isPremium = false;
     this.initialized = false;
-    this.usageLoaded = false; // ✅ 사용량 로드 완료 플래그
+    this.usageLoaded = false;
   }
 
   async initialize() {
@@ -44,6 +45,9 @@ class AppController {
       if (!isAuthenticated) {
         console.log('[Auth] 로그인 필요 - 안내 화면 표시');
         this.showLoginRequiredScreen();
+        
+        // ✅ 로그인 화면도 페이드인
+        document.body.classList.add('loaded');
         return;
       }
 
@@ -68,10 +72,17 @@ class AppController {
 
       this.initialized = true;
       console.log('[Popup] 초기화 완료');
+      
+      // ✅ 깜빡임 방지: 초기화 완료 후 페이드인
+      document.body.classList.add('loaded');
+      
     } catch (error) {
       console.error('[Popup] 초기화 오류:', error);
       window.errorHandler.handle(error, 'popup-initialization');
       this.showError('initializationError');
+      
+      // ✅ 에러 발생 시에도 페이지 표시
+      document.body.classList.add('loaded');
     }
   }
 

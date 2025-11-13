@@ -709,6 +709,36 @@
 },
 "questionPrompt": {
   "message": "Question:"
-}
+},
+"currentPage": {
+    "message": "Current Page"
+  },
+  "closePanel": {
+    "message": "Close Panel"
+  },
+  "sidePanelInfo": {
+    "message": "Summary results will be displayed in the right Side Panel"
+  },
+  "pdfProcessing": {
+    "message": "Processing PDF..."
+  },
+  "pdfPreparing": {
+    "message": "Preparing..."
+  },
+  "pdfDownloading": {
+    "message": "Downloading PDF..."
+  },
+  "pdfExtracting": {
+    "message": "Extracting text..."
+  },
+  "pdfAnalyzing": {
+    "message": "Analyzing PDF..."
+  },
+  "pdfCompleting": {
+    "message": "Completing..."
+  },
+  "loadingUsage": {
+    "message": "Checking usage..."
+  }
 
 }

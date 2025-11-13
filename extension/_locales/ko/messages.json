@@ -709,6 +709,36 @@
 },
 "questionPrompt": {
   "message": "질문:"
-}
+},
+"currentPage": {
+    "message": "현재 페이지"
+  },
+  "closePanel": {
+    "message": "패널 닫기"
+  },
+  "sidePanelInfo": {
+    "message": "요약 결과는 오른쪽 Side Panel에 표시됩니다"
+  },
+  "pdfProcessing": {
+    "message": "PDF 처리 중..."
+  },
+  "pdfPreparing": {
+    "message": "준비 중..."
+  },
+  "pdfDownloading": {
+    "message": "PDF 다운로드 중..."
+  },
+  "pdfExtracting": {
+    "message": "텍스트 추출 중..."
+  },
+  "pdfAnalyzing": {
+    "message": "PDF 분석 중..."
+  },
+  "pdfCompleting": {
+    "message": "완료 중..."
+  },
+  "loadingUsage": {
+    "message": "사용량 확인 중..."
+  }
 
 }

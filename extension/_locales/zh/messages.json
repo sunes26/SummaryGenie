@@ -709,6 +709,36 @@
 },
 "questionPrompt": {
   "message": "问题:"
-}
+},
+"currentPage": {
+    "message": "当前页面"
+  },
+  "closePanel": {
+    "message": "关闭面板"
+  },
+  "sidePanelInfo": {
+    "message": "摘要结果将显示在右侧面板中"
+  },
+  "pdfProcessing": {
+    "message": "处理PDF中..."
+  },
+  "pdfPreparing": {
+    "message": "准备中..."
+  },
+  "pdfDownloading": {
+    "message": "下载PDF中..."
+  },
+  "pdfExtracting": {
+    "message": "提取文本中..."
+  },
+  "pdfAnalyzing": {
+    "message": "分析PDF中..."
+  },
+  "pdfCompleting": {
+    "message": "完成中..."
+  },
+  "loadingUsage": {
+    "message": "检查使用量中..."
+  }
 
 }

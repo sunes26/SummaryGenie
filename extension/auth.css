@@ -1,6 +1,7 @@
 /**
  * SummaryGenie 로그인/회원가입 페이지 스타일
  * Material Design 기반 UI + 다국어 지원
+ * v2.0.0 - 깜빡임 방지 적용
  */
 
 /* 기본 리셋 */
@@ -10,7 +11,10 @@
   box-sizing: border-box;
 }
 
+/* ✅ 깜빡임 방지: 초기 숨김 */
 body {
+  opacity: 0;
+  visibility: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -19,6 +23,13 @@ body {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  transition: opacity 0.3s ease;
+}
+
+/* ✅ 초기화 완료 후 페이드인 */
+body.loaded {
+  opacity: 1;
+  visibility: visible;
 }
 
 /* 컨테이너 */
